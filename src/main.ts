@@ -27,7 +27,7 @@ const architectureLabels: Record<Architecture, string> = {
 const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0 };
 const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights: 10 };
 const root = document.querySelector<HTMLDivElement>('#app')!;
-const transformerState = { lesson: 0, tokens: 7, heads: 4, depth: 12, path: 2, query: 4 };
+const transformerState = { lesson: 0, tokens: 7, heads: 4, depth: 12, path: 2, query: 4, eli5: false };
 const transformerPath = ['Token embeddings', 'Position signal', 'Self-attention', 'MLP / residual update', 'Prediction head'];
 const demoTokens = ['The', 'cat', 'sat', 'because', 'it', 'was', 'tired'];
 const transformerPathDetails = [
@@ -37,6 +37,14 @@ const transformerPathDetails = [
   ['MLP / residual update', 'The MLP transforms each position, while the residual path carries the previous representation forward.', 'representation + learned update'],
   ['Prediction head', 'The final representation is converted into scores over the vocabulary for the next-token decision.', 'hidden state → vocabulary logits']
 ];
+const transformerEli5: Record<string, { question: string; intro: string; sections: { heading: string; body: string; bullets?: string[] }[]; takeaway: string }> = {
+  tokens: { question: 'How does a Transformer see a sentence?', intro: 'Imagine giving the model a box of word labels. It turns every label into a small bundle of numbers so it can work with the sentence.', sections: [{ heading: 'Words become number cards', body: 'A tokenizer cuts a sentence into small pieces. Each piece gets a number, and an embedding turns that number into a learned number card.' }, { heading: 'Cards carry meaning clues', body: 'The card is not a dictionary definition. It is more like a location on a giant map where similar uses can end up near each other.' }, { heading: 'Why start here?', body: 'Everything else in the Transformer changes these number cards little by little.', bullets: ['Sentence → pieces.', 'Pieces → number cards.', 'Number cards → Transformer layers.'] }], takeaway: 'A Transformer starts by turning text pieces into number cards it can change.' },
+  position: { question: 'Why is “dog bites man” different from “man bites dog”?', intro: 'Two sentences can use the same words but mean different things because the order changes. The model needs a little “where am I?” sticker for each token.', sections: [{ heading: 'Attention needs a map', body: 'Looking at the same collection of word cards is not enough. The model also needs to know which card came first, second, and third.' }, { heading: 'Add a place sticker', body: 'Position information travels with each token so the model can tell the difference between the words and their places.' }, { heading: 'Order changes meaning', body: 'Move the cards around and the model sees a different arrangement.', bullets: ['Content says what the token is.', 'Position says where it is.', 'Together they describe the sentence.'] }], takeaway: 'Position stickers help the model understand the order of the words.' },
+  attention: { question: 'How can one word use information from the rest of the sentence?', intro: 'Imagine each word can look around the sentence and decide which other words are useful right now.', sections: [{ heading: 'A word asks a question', body: 'The Query is the word’s question: “What should I look for?”' }, { heading: 'Other words hold labels and messages', body: 'Keys are labels that help match the question. Values are the messages that get passed along when a match is useful.' }, { heading: 'Meaning becomes richer', body: 'After looking around, a word gets a new version of itself that includes helpful context.', bullets: ['Query asks.', 'Key matches.', 'Value carries the message.'] }], takeaway: 'Attention lets one word borrow useful clues from other words.' },
+  block: { question: 'What happens after attention?', intro: 'After the words share clues, each word gets its own little thinking time to reshape what it learned.', sections: [{ heading: 'Share first', body: 'Attention lets the word cards talk to one another.' }, { heading: 'Think separately', body: 'An MLP is like a small workshop that changes each card on its own.' }, { heading: 'Keep the old notes', body: 'A residual connection keeps a copy of what came before, so each layer can add a helpful change instead of starting over.', bullets: ['Words share clues.', 'Each word is reshaped.', 'The old version is carried forward.'] }], takeaway: 'A Transformer block lets words share, think, and keep a running copy of their notes.' },
+  heads: { question: 'Why not use one attention pattern?', intro: 'One pair of eyes may miss something. Multiple attention heads let the model look at the same sentence in several ways at once.', sections: [{ heading: 'Different pairs of eyes', body: 'One head might notice nearby words, while another notices a name and the word that refers to it.' }, { heading: 'Look, then combine', body: 'Each head makes its own small view. The model puts the views together afterward.' }, { heading: 'More is not always better', body: 'Extra heads are useful only when the model learns helpful jobs for them.', bullets: ['Each head sees a learned view.', 'Heads work at the same time.', 'Their views are combined.'] }], takeaway: 'Multiple heads give the model several ways to look for relationships.' },
+  stack: { question: 'How does a simple operation become a capable model?', intro: 'One layer can make one small improvement. Many layers are like many rounds of editing a drawing until the picture becomes clear.', sections: [{ heading: 'Each layer adds a clue', body: 'Early layers may notice simple patterns. Later layers can use those clues to notice more complicated relationships.' }, { heading: 'The note travels upward', body: 'Residual connections carry the working version through the stack while each layer adds its update.' }, { heading: 'Make a guess', body: 'At the end, the model turns its final notes into scores for possible next words.', bullets: ['Layer 1 makes a change.', 'Layer 2 builds on it.', 'The final layer helps choose the next token.'] }], takeaway: 'Many small rounds of sharing and editing can produce a useful next-word prediction.' }
+};
 
 function formatBytes(gb: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(gb * 1024).toFixed(0)} MB`;
@@ -202,6 +210,7 @@ function bindResearchEvents() {
 
 function renderTransformer() {
   const lesson = transformerLessons[transformerState.lesson];
+  const copy = transformerState.eli5 ? transformerEli5[lesson.id] : lesson;
   const paper = researchPapers[0];
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a><a href="#research" target="_blank" rel="noreferrer">RESEARCH PAPERS ↗</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
@@ -212,6 +221,25 @@ function renderTransformer() {
 }
 
 function bindTransformerEvents() {
+  const sidebarHeading = document.querySelector<HTMLElement>('.transformer-section .sidebar-heading');
+  if (sidebarHeading && !sidebarHeading.querySelector('[data-action="toggleEli5"]')) {
+    const toggle = document.createElement('button');
+    toggle.className = `eli5-toggle ${transformerState.eli5 ? 'active' : ''}`;
+    toggle.dataset.action = 'toggleEli5';
+    toggle.setAttribute('aria-pressed', String(transformerState.eli5));
+    toggle.innerHTML = `ELI5 <span>${transformerState.eli5 ? 'ON' : 'OFF'}</span>`;
+    sidebarHeading.appendChild(toggle);
+  }
+  const activeLesson = transformerLessons[transformerState.lesson];
+  const copy = transformerState.eli5 ? transformerEli5[activeLesson.id] : activeLesson;
+  const sectionIntro = document.querySelector<HTMLElement>('.transformer-section .section-intro');
+  const readingIntro = document.querySelector<HTMLElement>('.transformer-section .reading-intro');
+  const readingSections = document.querySelector<HTMLElement>('.transformer-section .reading-sections');
+  const takeaway = document.querySelector<HTMLElement>('.transformer-section .takeaway-card strong');
+  if (sectionIntro) sectionIntro.textContent = `${copy.question} ${copy.intro}`;
+  if (readingIntro) readingIntro.textContent = copy.intro;
+  if (readingSections) readingSections.innerHTML = copy.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('');
+  if (takeaway) takeaway.textContent = copy.takeaway;
   addResearchShelf();
   const pathList = document.querySelector<HTMLDivElement>('.transformer-path-list');
   if (pathList) pathList.innerHTML = transformerPath.map((path) => `<span>${path}</span>`).join('');
@@ -233,6 +261,7 @@ function bindTransformerEvents() {
   document.querySelector<HTMLInputElement>('#transformer-heads')?.addEventListener('input', (event) => { transformerState.heads = Number((event.target as HTMLInputElement).value); renderTransformer(); });
   document.querySelector<HTMLInputElement>('#transformer-depth')?.addEventListener('input', (event) => { transformerState.depth = Number((event.target as HTMLInputElement).value); renderTransformer(); });
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderTransformer(); });
+  document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { transformerState.eli5 = !transformerState.eli5; renderTransformer(); });
   document.querySelectorAll<HTMLButtonElement>('[data-transformer-path]').forEach((button) => button.addEventListener('click', () => { transformerState.path = Number(button.dataset.transformerPath); renderTransformer(); }));
   document.querySelectorAll<HTMLElement>('.transformer-path-list span').forEach((stage, index) => {
     stage.classList.toggle('active', index === transformerState.path);
