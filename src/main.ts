@@ -1,6 +1,7 @@
 import './style.css';
 import { lessons } from './lessonData';
 import { reading } from './lessonReading';
+import { transformerLessons } from './transformerData';
 
 type Architecture = 'attention' | 'window' | 'linear' | 'ssm' | 'mamba' | 'hybrid';
 
@@ -25,6 +26,7 @@ const architectureLabels: Record<Architecture, string> = {
 const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0 };
 const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights: 10 };
 const root = document.querySelector<HTMLDivElement>('#app')!;
+const transformerState = { lesson: 0, tokens: 6, heads: 4, depth: 12 };
 
 function formatBytes(gb: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(gb * 1024).toFixed(0)} MB`;
@@ -53,6 +55,10 @@ function metrics() {
 }
 
 function render() {
+  if (window.location.hash === '#transformer') {
+    renderTransformer();
+    return;
+  }
   const lesson = lessons[state.chapter];
   const lessonReading = reading[lesson.id];
   const m = metrics();
@@ -60,7 +66,7 @@ function render() {
     <div id="hover-card" class="hover-card" role="status" aria-live="polite"><span class="hover-card-kicker">CONTEXT NOTE</span><strong data-card-title></strong><p data-card-body></p></div>
     <header class="topbar">
       <a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a>
-      <div class="topbar-meta"><span>MODULE 02</span><span class="status-dot"></span><span>KV CACHE / TOKEN HISTORY</span></div>
+      <div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a></div>
       <button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button>
     </header>
     <main id="top">
@@ -162,6 +168,54 @@ function bindInfoCards() {
   });
 }
 
+function renderTransformer() {
+  const lesson = transformerLessons[transformerState.lesson];
+  root.innerHTML = `
+    <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
+    <main id="transformer-top"><section class="hero section-shell transformer-hero"><div class="hero-copy"><p class="eyebrow">Module 01 / Foundations</p><h1>How a Transformer <em>thinks in layers.</em></h1><p class="hero-lede">Follow a sequence from token IDs to contextual representations. See where attention connects positions, where the MLP transforms features, and why many blocks are stacked together.</p><div class="hero-actions"><button class="primary-button" data-action="startTransformer">Start the walkthrough <span>↗</span></button><a class="text-button" href="#top">Explore KV cache <span>→</span></a></div></div><div class="transformer-hero-diagram"><div class="diagram-caption">A SEQUENCE BECOMES A REPRESENTATION</div><div class="hero-token-row"><span>the</span><span>model</span><span>reads</span><span>context</span></div><div class="hero-arrow">↓</div><div class="hero-layer-row"><b>ATTENTION</b><b>MLP</b><b>ATTENTION</b></div><div class="hero-arrow">↓</div><div class="hero-output">contextual prediction</div></div></section>
+    <section class="lab-section section-shell transformer-section" id="transformer-lab"><div class="lesson-layout"><aside class="lesson-sidebar"><div class="sidebar-heading"><span class="lesson-label">MODULE MAP</span><strong>Transformer path</strong></div><nav aria-label="Transformer lesson navigation">${transformerLessons.map((item, index) => `<button class="lesson-nav-item ${index === transformerState.lesson ? 'active' : ''}" data-transformer-lesson="${index}"><span>${item.kicker}</span><strong>${item.title}</strong><small>${item.question}</small></button>`).join('')}</nav></aside><div class="lesson-content"><div class="section-heading"><div><p class="eyebrow">${lesson.kicker}</p><h2>${lesson.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousTransformer" ${transformerState.lesson === 0 ? 'disabled' : ''}>← Previous</button><span>${transformerState.lesson + 1} / ${transformerLessons.length}</span><button class="step-button" data-action="nextTransformer" ${transformerState.lesson === transformerLessons.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="section-intro">${lesson.question} ${lesson.intro}</p><article class="reading-panel"><div class="reading-header"><div><span class="lesson-label">READ THE CONCEPT</span><h3>${lesson.title}</h3></div><span class="reading-index">${String(transformerState.lesson + 1).padStart(2, '0')} / ${String(transformerLessons.length).padStart(2, '0')}</span></div><p class="reading-intro">${lesson.intro}</p><div class="reading-sections">${lesson.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.formula ? `<code>${section.formula}</code>` : ''}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('')}</div></article><div class="transformer-lab-grid"><div class="visual-panel"><div class="panel-topline"><span class="panel-label">LIVE TRANSFORMER PATH</span><span class="panel-note">Symbolic representation</span></div><canvas id="transformer-canvas" aria-label="Diagram of tokens flowing through Transformer layers"></canvas><div class="canvas-legend"><span><b class="dot q"></b>Tokens</span><span><b class="dot k"></b>Attention mixing</span><span><b class="dot state-dot-legend"></b>MLP / residual update</span></div></div><aside class="control-panel transformer-controls"><div class="control-block"><label for="transformer-tokens"><span>Sequence tokens</span><strong>${transformerState.tokens}</strong></label><input id="transformer-tokens" type="range" min="3" max="12" value="${transformerState.tokens}"><div class="range-labels"><span>3</span><span>12</span></div></div><div class="control-block"><label for="transformer-heads"><span>Attention heads</span><strong>${transformerState.heads}</strong></label><input id="transformer-heads" type="range" min="1" max="8" value="${transformerState.heads}"><div class="range-labels"><span>1</span><span>8</span></div></div><div class="control-block"><label for="transformer-depth"><span>Stacked blocks</span><strong>${transformerState.depth}</strong></label><input id="transformer-depth" type="range" min="1" max="48" value="${transformerState.depth}"><div class="range-labels"><span>1</span><span>48</span></div></div><div class="architecture-select"><span class="control-caption">Current path</span><div class="transformer-path-list"><span>Token embeddings</span><span>Position signal</span><span class="active">${lesson.id === 'attention' ? 'Self-attention' : 'Transformer block'}</span><span>Prediction head</span></div></div></aside></div><div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lesson.takeaway}</strong></div><div class="check-card"><span class="lesson-label">MENTAL MODEL</span><p>Input representations move through repeated transformations. Attention communicates across positions; MLP layers transform each position; residuals carry the running signal forward.</p></div></div></div></div></section><section class="reference section-shell"><div><p class="eyebrow">Module bridge</p><h2>Now follow the memory.</h2><p>Once you understand how attention creates and uses Key and Value representations, continue to the KV-cache module to see why long context becomes a serving problem.</p></div><div class="equation-card"><span>NEXT MODULE</span><code>Transformer blocks<br>↓<br>attention history<br>↓<br>KV cache pressure</code><a class="primary-button" href="#top">Open KV cache <span>→</span></a></div></section></main><footer class="footer section-shell"><span>AI SYSTEMS LAB / MODULE 01</span><a class="text-button" href="#top">Go to KV cache →</a></footer>`;
+  bindTransformerEvents();
+  drawTransformerCanvas();
+}
+
+function bindTransformerEvents() {
+  document.querySelectorAll<HTMLButtonElement>('[data-transformer-lesson]').forEach((button) => button.addEventListener('click', () => { transformerState.lesson = Number(button.dataset.transformerLesson); renderTransformer(); }));
+  document.querySelector<HTMLButtonElement>('[data-action="previousTransformer"]')?.addEventListener('click', () => changeTransformerLesson(-1));
+  document.querySelector<HTMLButtonElement>('[data-action="nextTransformer"]')?.addEventListener('click', () => changeTransformerLesson(1));
+  document.querySelector<HTMLButtonElement>('[data-action="startTransformer"]')?.addEventListener('click', () => document.querySelector('#transformer-lab')?.scrollIntoView({ behavior: state.reducedMotion ? 'auto' : 'smooth' }));
+  document.querySelector<HTMLInputElement>('#transformer-tokens')?.addEventListener('input', (event) => { transformerState.tokens = Number((event.target as HTMLInputElement).value); renderTransformer(); });
+  document.querySelector<HTMLInputElement>('#transformer-heads')?.addEventListener('input', (event) => { transformerState.heads = Number((event.target as HTMLInputElement).value); renderTransformer(); });
+  document.querySelector<HTMLInputElement>('#transformer-depth')?.addEventListener('input', (event) => { transformerState.depth = Number((event.target as HTMLInputElement).value); renderTransformer(); });
+  document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderTransformer(); });
+}
+
+function changeTransformerLesson(direction: number) {
+  transformerState.lesson = Math.max(0, Math.min(transformerLessons.length - 1, transformerState.lesson + direction));
+  renderTransformer();
+  document.querySelector('#transformer-lab')?.scrollIntoView({ behavior: state.reducedMotion ? 'auto' : 'smooth', block: 'start' });
+}
+
+function drawTransformerCanvas() {
+  const canvas = document.querySelector<HTMLCanvasElement>('#transformer-canvas');
+  if (!canvas) return;
+  const bounds = canvas.getBoundingClientRect();
+  const ratio = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, bounds.width * ratio); canvas.height = Math.max(1, bounds.height * ratio);
+  const context = canvas.getContext('2d'); if (!context) return;
+  context.scale(ratio, ratio); const width = bounds.width; const height = bounds.height;
+  context.fillStyle = '#10252d'; context.fillRect(0, 0, width, height); context.strokeStyle = 'rgba(168, 220, 203, .10)';
+  for (let x = 0; x < width; x += 36) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
+  for (let y = 0; y < height; y += 36) { context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
+  context.font = '11px "DM Mono", monospace'; context.fillStyle = '#8ab6ad'; context.fillText('TOKEN REPRESENTATIONS / BLOCK ' + transformerState.depth, 24, 28);
+  const gap = Math.min(48, (width - 90) / transformerState.tokens); const start = (width - gap * transformerState.tokens) / 2; const tokenY = height * .28;
+  context.font = '11px "DM Sans", sans-serif';
+  for (let i = 0; i < transformerState.tokens; i++) { const x = start + i * gap; context.fillStyle = '#9a89ff'; context.beginPath(); context.roundRect(x, tokenY, 25, 25, 5); context.fill(); context.fillStyle = '#dbe8df'; context.fillText(String(i + 1), x + 9, tokenY + 16); }
+  context.strokeStyle = 'rgba(110, 210, 189, .42)'; context.lineWidth = 1;
+  for (let i = 0; i < transformerState.tokens; i++) for (let j = i + 1; j < transformerState.tokens; j += Math.max(1, Math.ceil(transformerState.tokens / transformerState.heads))) { const x1 = start + i * gap + 12; const x2 = start + j * gap + 12; context.beginPath(); context.moveTo(x1, tokenY + 25); context.lineTo(x2, tokenY + 74); context.stroke(); }
+  const blockY = height * .63; const blockWidth = Math.min(130, (width - 80) / 3); ['ATTENTION', 'MLP', 'RESIDUAL'].forEach((label, index) => { const x = 24 + index * (blockWidth + 18); context.fillStyle = index === 0 ? '#167d78' : '#aabd31'; context.beginPath(); context.roundRect(x, blockY, blockWidth, 50, 7); context.fill(); context.fillStyle = '#f1f6ee'; context.font = '11px "DM Mono", monospace'; context.fillText(label, x + 14, blockY + 29); if (index < 2) { context.strokeStyle = '#d8e775'; context.beginPath(); context.moveTo(x + blockWidth, blockY + 25); context.lineTo(x + blockWidth + 18, blockY + 25); context.stroke(); } });
+  context.fillStyle = '#8ab6ad'; context.font = '11px "DM Mono", monospace'; context.fillText('contextual representation → next-token scores', 24, height - 24);
+}
+
 function drawCanvas() {
   const canvas = document.querySelector<HTMLCanvasElement>('#lab-canvas');
   if (!canvas) return;
@@ -207,5 +261,6 @@ function drawCanvas() {
   context.fillStyle = 'rgba(216,242,110,.12)'; context.fillRect(24, 52, width - 48, 5); context.fillStyle = m.pressure > 100 ? '#ff9770' : '#d8f26e'; context.fillRect(24, 52, pressureWidth, 5);
 }
 
-window.addEventListener('resize', drawCanvas);
+window.addEventListener('resize', () => { drawCanvas(); drawTransformerCanvas(); });
+window.addEventListener('hashchange', render);
 render();
