@@ -28,6 +28,13 @@ const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const transformerState = { lesson: 0, tokens: 6, heads: 4, depth: 12, path: 2 };
 const transformerPath = ['Token embeddings', 'Position signal', 'Self-attention', 'MLP / residual update', 'Prediction head'];
+const transformerPathDetails = [
+  ['Token embeddings', 'Token IDs become learned vectors. This is where text enters the numerical model.', 'Input shape: sequence length × model width'],
+  ['Position signal', 'Position information is combined with token content so the model can distinguish order.', 'Content + location → representation'],
+  ['Self-attention', 'Each position compares a Query with Keys and mixes the matching Values from other positions.', 'Q, K, V → contextual representation'],
+  ['MLP / residual update', 'The MLP transforms each position, while the residual path carries the previous representation forward.', 'representation + learned update'],
+  ['Prediction head', 'The final representation is converted into scores over the vocabulary for the next-token decision.', 'hidden state → vocabulary logits']
+];
 
 function formatBytes(gb: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(gb * 1024).toFixed(0)} MB`;
@@ -182,6 +189,16 @@ function renderTransformer() {
 function bindTransformerEvents() {
   const pathList = document.querySelector<HTMLDivElement>('.transformer-path-list');
   if (pathList) pathList.innerHTML = transformerPath.map((path) => `<span>${path}</span>`).join('');
+  let detailHost = document.querySelector<HTMLElement>('.transformer-path-detail');
+  if (!detailHost && pathList?.parentElement) {
+    detailHost = document.createElement('div');
+    detailHost.className = 'transformer-path-detail';
+    pathList.parentElement.appendChild(detailHost);
+  }
+  if (detailHost) {
+    const [title, body, data] = transformerPathDetails[transformerState.path];
+    detailHost.innerHTML = `<span class="lesson-label">WHAT THIS STAGE DOES</span><strong>${title}</strong><p>${body}</p><code>${data}</code>`;
+  }
   document.querySelectorAll<HTMLButtonElement>('[data-transformer-lesson]').forEach((button) => button.addEventListener('click', () => { transformerState.lesson = Number(button.dataset.transformerLesson); renderTransformer(); }));
   document.querySelector<HTMLButtonElement>('[data-action="previousTransformer"]')?.addEventListener('click', () => changeTransformerLesson(-1));
   document.querySelector<HTMLButtonElement>('[data-action="nextTransformer"]')?.addEventListener('click', () => changeTransformerLesson(1));
@@ -221,10 +238,9 @@ function drawTransformerCanvas() {
   context.font = '11px "DM Mono", monospace'; context.fillStyle = '#8ab6ad'; context.fillText(`${transformerPath[transformerState.path].toUpperCase()} / BLOCK ${transformerState.depth}`, 24, 28);
   const gap = Math.min(48, (width - 90) / transformerState.tokens); const start = (width - gap * transformerState.tokens) / 2; const tokenY = height * .28;
   context.font = '11px "DM Sans", sans-serif';
-  for (let i = 0; i < transformerState.tokens; i++) { const x = start + i * gap; context.fillStyle = '#9a89ff'; context.beginPath(); context.roundRect(x, tokenY, 25, 25, 5); context.fill(); context.fillStyle = '#dbe8df'; context.fillText(String(i + 1), x + 9, tokenY + 16); }
-  context.strokeStyle = 'rgba(110, 210, 189, .42)'; context.lineWidth = 1;
-  for (let i = 0; i < transformerState.tokens; i++) for (let j = i + 1; j < transformerState.tokens; j += Math.max(1, Math.ceil(transformerState.tokens / transformerState.heads))) { const x1 = start + i * gap + 12; const x2 = start + j * gap + 12; context.beginPath(); context.moveTo(x1, tokenY + 25); context.lineTo(x2, tokenY + 74); context.stroke(); }
-  const blockY = height * .63; const blockWidth = Math.min(130, (width - 80) / 3); ['ATTENTION', 'MLP', 'RESIDUAL'].forEach((label, index) => { const x = 24 + index * (blockWidth + 18); context.fillStyle = index === 0 ? '#167d78' : '#aabd31'; context.beginPath(); context.roundRect(x, blockY, blockWidth, 50, 7); context.fill(); context.fillStyle = '#f1f6ee'; context.font = '11px "DM Mono", monospace'; context.fillText(label, x + 14, blockY + 29); if (index < 2) { context.strokeStyle = '#d8e775'; context.beginPath(); context.moveTo(x + blockWidth, blockY + 25); context.lineTo(x + blockWidth + 18, blockY + 25); context.stroke(); } });
+  for (let i = 0; i < transformerState.tokens; i++) { const x = start + i * gap; context.fillStyle = transformerState.path === 0 ? '#aabd31' : '#6c5ac7'; context.beginPath(); context.roundRect(x, tokenY, 25, 25, 5); context.fill(); context.fillStyle = '#f1f6ee'; context.fillText(String(i + 1), x + 9, tokenY + 16); if (transformerState.path === 1) { context.fillStyle = '#d8e775'; context.beginPath(); context.arc(x + 12, tokenY - 10, 3 + (i % 3), 0, Math.PI * 2); context.fill(); } }
+  if (transformerState.path === 2) { context.strokeStyle = 'rgba(110, 210, 189, .48)'; context.lineWidth = 1; for (let i = 0; i < transformerState.tokens; i++) for (let j = i + 1; j < transformerState.tokens; j += Math.max(1, Math.ceil(transformerState.tokens / transformerState.heads))) { const x1 = start + i * gap + 12; const x2 = start + j * gap + 12; context.beginPath(); context.moveTo(x1, tokenY + 25); context.lineTo(x2, tokenY + 74); context.stroke(); } }
+  const blockY = height * .63; const blockWidth = Math.min(130, (width - 80) / 3); ['ATTENTION', 'MLP', 'RESIDUAL'].forEach((label, index) => { const x = 24 + index * (blockWidth + 18); const isSelected = (transformerState.path === 2 && index === 0) || (transformerState.path === 3 && index > 0) || (transformerState.path === 4 && index === 2); context.fillStyle = isSelected ? '#167d78' : '#55747b'; context.beginPath(); context.roundRect(x, blockY, blockWidth, 50, 7); context.fill(); context.fillStyle = '#f1f6ee'; context.font = '11px "DM Mono", monospace'; context.fillText(label, x + 14, blockY + 29); if (index < 2) { context.strokeStyle = '#d8e775'; context.beginPath(); context.moveTo(x + blockWidth, blockY + 25); context.lineTo(x + blockWidth + 18, blockY + 25); context.stroke(); } });
   context.fillStyle = '#8ab6ad'; context.font = '11px "DM Mono", monospace'; context.fillText('contextual representation → next-token scores', 24, height - 24);
 }
 
