@@ -132,3 +132,12 @@ h1 em { color: var(--teal); }.hero-lede, .section-intro, .explainer-copy p, .ref
 .lab-grid { background: #10252d; border-color: rgba(23, 52, 61, .22); }.control-panel { background: #ffffff; }.control-block { border-color: var(--line); }.control-block label, .arch-button { color: var(--muted); }.control-block label strong { color: #667c13; }.arch-button:hover, .arch-button.selected { border-color: var(--teal); color: var(--teal); background: rgba(22, 125, 120, .06); }
 .equation-card { background: #e1efea; border-color: rgba(22, 125, 120, .25); }.equation-card code { color: var(--ink); }.equation-card > span { color: var(--teal); }.equation-result strong { color: #667c13; }
 .step-button { color: var(--muted); border-color: var(--line); }.step-button:hover:not(:disabled) { border-color: var(--teal); color: var(--teal); }.hover-card { border-color: rgba(22, 125, 120, .35); background: rgba(255, 255, 255, .98); box-shadow: 0 18px 45px rgba(23, 52, 61, .18); }.hover-card-kicker { color: #667c13; }.hover-card strong { color: var(--ink); }.hover-card p { color: var(--muted); }
+
+/* Course UI rules: one reading measure, one spacing rhythm, one control language. */
+body { line-height: 1.5; }
+h1, h2, h3, h4 { letter-spacing: -.025em; }
+.section-shell { width: min(1160px, 88vw); }
+.reading-panel, .attention-activity, .paper-card, .paper-reading, .equation-card, .takeaway-grid, .metrics-grid, .lesson-strip { border-radius: 4px; }
+.reading-section p, .lesson-column p, .paper-reading-body, .paper-summary, .paper-caveat p, .reference p, .explainer-copy p { max-width: 68ch; }
+.lesson-nav-item, .paper-chapter, .arch-button, .query-button, .step-button, .eli5-toggle { transition: background-color .16s ease, border-color .16s ease, color .16s ease; }
+.lesson-label { font-weight: 500; }

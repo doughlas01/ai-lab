@@ -15,3 +15,14 @@ export const upcomingPapers = [
   ['Chinchilla', 'Why training data and parameter count should be balanced.'],
   ['PagedAttention', 'How serving systems manage many requests’ KV-cache memory.']
 ];
+
+export const attentionPaperEli5 = [
+  ['The problem', 'Imagine a reader who can look at only one word at a time and must finish each word before seeing the next. That is slow, and it is hard to remember how a word at the beginning connects to a word far away.'],
+  ['The big idea', 'Let every word look around the sentence and choose which other words are helpful. Then let all the words do that looking together.'],
+  ['The mechanism', 'A word asks a question, other words show labels, and useful messages are passed back. Query asks, Key matches, and Value carries the message.'],
+  ['Many views', 'Give the reader several pairs of glasses. One pair notices nearby grammar, another notices names, and another notices a longer connection.'],
+  ['Order matters', 'If you put word cards on a table, you need little place numbers to know which card came first. Position information gives every word a place.'],
+  ['The machine', 'The words share clues, each word gets a little thinking time, and the old notes are carried forward. Repeat this many times to make a better guess.'],
+  ['Why it mattered', 'The paper showed that this way of looking around could work very well for translation and could use powerful computers more efficiently during training.'],
+  ['Engineering lens', 'Looking at every word is powerful, but a very long sentence creates lots of connections and saved cards. That is why engineers later had to think carefully about memory.']
+];

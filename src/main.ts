@@ -2,7 +2,7 @@ import './style.css';
 import { lessons } from './lessonData';
 import { reading } from './lessonReading';
 import { researchPapers, transformerLessons } from './transformerData';
-import { attentionPaperChapters, upcomingPapers } from './researchData';
+import { attentionPaperChapters, attentionPaperEli5, upcomingPapers } from './researchData';
 
 type Architecture = 'attention' | 'window' | 'linear' | 'ssm' | 'mamba' | 'hybrid';
 
@@ -13,6 +13,7 @@ type State = {
   architecture: Architecture;
   reducedMotion: boolean;
   chapter: number;
+  eli5: boolean;
 };
 
 const architectureLabels: Record<Architecture, string> = {
@@ -24,7 +25,7 @@ const architectureLabels: Record<Architecture, string> = {
   hybrid: 'Hybrid stack'
 };
 
-const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0 };
+const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0, eli5: false };
 const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights: 10 };
 const root = document.querySelector<HTMLDivElement>('#app')!;
 const transformerState = { lesson: 0, tokens: 7, heads: 4, depth: 12, path: 2, query: 4, eli5: false };
@@ -44,6 +45,16 @@ const transformerEli5: Record<string, { question: string; intro: string; section
   block: { question: 'What happens after attention?', intro: 'After the words share clues, each word gets its own little thinking time to reshape what it learned.', sections: [{ heading: 'Share first', body: 'Attention lets the word cards talk to one another.' }, { heading: 'Think separately', body: 'An MLP is like a small workshop that changes each card on its own.' }, { heading: 'Keep the old notes', body: 'A residual connection keeps a copy of what came before, so each layer can add a helpful change instead of starting over.', bullets: ['Words share clues.', 'Each word is reshaped.', 'The old version is carried forward.'] }], takeaway: 'A Transformer block lets words share, think, and keep a running copy of their notes.' },
   heads: { question: 'Why not use one attention pattern?', intro: 'One pair of eyes may miss something. Multiple attention heads let the model look at the same sentence in several ways at once.', sections: [{ heading: 'Different pairs of eyes', body: 'One head might notice nearby words, while another notices a name and the word that refers to it.' }, { heading: 'Look, then combine', body: 'Each head makes its own small view. The model puts the views together afterward.' }, { heading: 'More is not always better', body: 'Extra heads are useful only when the model learns helpful jobs for them.', bullets: ['Each head sees a learned view.', 'Heads work at the same time.', 'Their views are combined.'] }], takeaway: 'Multiple heads give the model several ways to look for relationships.' },
   stack: { question: 'How does a simple operation become a capable model?', intro: 'One layer can make one small improvement. Many layers are like many rounds of editing a drawing until the picture becomes clear.', sections: [{ heading: 'Each layer adds a clue', body: 'Early layers may notice simple patterns. Later layers can use those clues to notice more complicated relationships.' }, { heading: 'The note travels upward', body: 'Residual connections carry the working version through the stack while each layer adds its update.' }, { heading: 'Make a guess', body: 'At the end, the model turns its final notes into scores for possible next words.', bullets: ['Layer 1 makes a change.', 'Layer 2 builds on it.', 'The final layer helps choose the next token.'] }], takeaway: 'Many small rounds of sharing and editing can produce a useful next-word prediction.' }
+};
+const kvEli5: Record<string, { question: string; explanation: string; intro: string; sections: { heading: string; body: string; formula?: string; bullets?: string[] }[]; analogy: string; visual: string; tradeoff: string; takeaway: string }> = {
+  'kv-cache': { question: 'How can the model remember earlier words?', explanation: 'Imagine a helper keeping little information cards on a shelf. The model can look at those cards instead of making them again.', intro: 'A KV cache is a shelf where the model keeps useful cards from earlier words.', sections: [{ heading: 'Question cards', body: 'A Query is like asking, “What do I need?” A Key is like a label on a card. A Value is the message written on the card.' }, { heading: 'Keep the cards ready', body: 'When a new word arrives, the model can reuse the old cards instead of making every card again.' }, { heading: 'The shelf gets bigger', body: 'Every new word can add another pair of cards, so a long conversation needs more shelf space.', bullets: ['The cards are not the whole model.', 'The cards are saved work.', 'Saved work uses memory.'] }], analogy: 'A librarian keeps labeled cards ready for the next question.', visual: 'Words become pairs of reusable cards.', tradeoff: 'Saving work is faster, but the shelf takes up space.', takeaway: 'The KV cache is a shelf of saved Key and Value cards.' },
+  growth: { question: 'What happens when the conversation gets longer?', explanation: 'More words mean more cards. More people using the model means more shelves.', intro: 'KV memory grows because every remembered word needs room for its cards.', sections: [{ heading: 'One more word', body: 'Each extra word can add another Key and Value pair. Double the remembered words and the card storage roughly doubles.' }, { heading: 'Many people', body: 'Each active conversation has its own shelf. A busy server must hold all of them at once.' }, { heading: 'The important idea', body: 'The model weights already use memory. Conversation shelves use additional memory.', bullets: ['Longer chat → more cards.', 'More users → more shelves.', 'More shelves → fewer users fit.'] }], analogy: 'A small backpack is fine for a short trip; many long trips need a much bigger storage room.', visual: 'The cache grows as the word count and user count grow.', tradeoff: 'Remembering more can help, but it costs space.', takeaway: 'Long context creates memory pressure because every remembered word needs storage.' },
+  window: { question: 'Can the model keep only the newest words?', explanation: 'A sliding window is like looking through a small window at the newest part of a long conversation.', intro: 'The model keeps a bounded recent area instead of looking directly at every old word.', sections: [{ heading: 'The window moves', body: 'When new words arrive, the window slides forward. Old words fall outside the view.' }, { heading: 'Small window', body: 'A small window needs less shelf space, but an old secret may be outside the view.' }, { heading: 'A careful claim', body: 'This does not mean the whole model has no long memory. Other layers or mechanisms may still carry information.', bullets: ['Recent words stay visible.', 'Old words become less direct.', 'The window size controls the trade-off.'] }], analogy: 'Read only the last few lines of a very long note.', visual: 'A bright window moves along the word strip.', tradeoff: 'Smaller view, smaller memory; bigger view, more direct history.', takeaway: 'Sliding-window attention saves space by looking directly at only a recent region.' },
+  linear: { question: 'Can many old words become one small summary?', explanation: 'Instead of keeping every card open, the model can keep a running notebook that changes as new words arrive.', intro: 'Linear-attention methods try to accumulate the past into a more compact running representation.', sections: [{ heading: 'A running notebook', body: 'Each new word updates the notebook. The notebook carries something about the past forward.' }, { heading: 'Why it can help', body: 'A small notebook may use less space than a card for every word.' }, { heading: 'What can be difficult', body: 'A short notebook may not remember every exact detail as directly as a full card shelf.', bullets: ['This is a family of methods.', 'It changes how history is processed.', 'The simulator is a teaching picture, not a benchmark.'] }], analogy: 'Write a growing summary instead of carrying every page of a book.', visual: 'Many word cards flow into a compact state.', tradeoff: 'Small summary, harder exact lookup.', takeaway: 'Linear attention tries to carry history in a more compact running form.' },
+  ssm: { question: 'What if memory is a changing state?', explanation: 'An SSM is like a person reading a story and keeping an evolving idea of what is happening.', intro: 'A state-space model carries information forward in a hidden state that changes with each new word.', sections: [{ heading: 'The state changes', body: 'A new word arrives, and the current state is updated. The next word sees the new state.' }, { heading: 'Not a card shelf', body: 'The state is a different way to represent history; it is not simply a smaller copy of attention cards.' }, { heading: 'Finite room', body: 'A compact state must decide what useful information can continue forward.', bullets: ['Read a word.', 'Update the state.', 'Use the state for the next word.'] }], analogy: 'Keep a changing summary of a story in your head.', visual: 'Word 1 changes State 1, then Word 2 changes State 2.', tradeoff: 'Compact memory, finite detail.', takeaway: 'SSMs carry history through an evolving state.' },
+  mamba: { question: 'Should every word change memory equally?', explanation: 'A useful word may deserve a strong note, while a tiny formatting word may need only a small note.', intro: 'Mamba-style selectivity lets state updates depend on the incoming word.', sections: [{ heading: 'Choose what matters', body: 'The model can process different words differently instead of treating every word exactly the same.' }, { heading: 'A teaching picture', body: 'A fact such as a price might make a strong state update. A filler word might make a smaller one.' }, { heading: 'Not a human score', body: 'The activity’s strength values are teaching symbols, not literal internal importance numbers.', bullets: ['Input changes the update.', 'Some information can be retained more strongly.', 'The actual behavior is learned.'] }], analogy: 'Underline an important sentence and skim a repeated filler phrase.', visual: 'Different words make different-sized state updates.', tradeoff: 'Spend memory on useful information, but do not assume a perfect importance judge.', takeaway: 'Mamba-style models make state updates input-dependent and selective.' },
+  tradeoffs: { question: 'Which kind of memory is useful here?', explanation: 'A full archive is easy to search but heavy to carry. A small notebook is light but may not contain every exact detail.', intro: 'There is no single best way to remember every kind of conversation.', sections: [{ heading: 'Precise or compact?', body: 'Token cards are direct and detailed. States and summaries are compact but may hide some exact details.' }, { heading: 'The work changes the answer', body: 'A chatbot, a long document reader, and a high-throughput server may prefer different balances.' }, { heading: 'Numbers need labels', body: 'The meters in this lab are conceptual teaching aids, not universal scores.', bullets: ['Memory matters.', 'Retrieval matters.', 'Speed and workload matter too.'] }], analogy: 'Choose between a searchable filing cabinet and a small notebook.', visual: 'The comparison changes when you choose a different memory style.', tradeoff: 'Every design balances useful properties.', takeaway: 'Architecture is a set of trade-offs, not a universal ranking.' },
+  hybrid: { question: 'Can we use more than one kind of memory?', explanation: 'A hybrid uses different tools in different layers: one tool for precise looking and another for carrying a compact story forward.', intro: 'Hybrid architectures combine attention and state-based processing.', sections: [{ heading: 'Two tools', body: 'Attention can look directly at token relationships. State-based layers can carry a compact evolving representation.' }, { heading: 'Different places', body: 'A model can place these layers in different positions and proportions.' }, { heading: 'No magic ratio', body: 'There is no universal recipe that guarantees a better model. Training, hardware, data, and workload matter too.', bullets: ['Attention path: direct lookup.', 'State path: compact history.', 'Hybrid path: combine tools.'] }], analogy: 'Use a magnifying glass for tiny details and a backpack for carrying the whole trip.', visual: 'The input can travel through attention and state paths.', tradeoff: 'Combining tools may balance strengths, but it also adds design choices.', takeaway: 'Hybrid models combine different ways of handling history.' }
 };
 
 function formatBytes(gb: number): string {
@@ -83,6 +94,7 @@ function render() {
   }
   const lesson = lessons[state.chapter];
   const lessonReading = reading[lesson.id];
+  const lessonCopy = state.eli5 ? kvEli5[lesson.id] : { question: lesson.question, explanation: lesson.explanation, intro: lessonReading.intro, sections: lessonReading.sections, analogy: lesson.analogy, visual: lesson.visual, tradeoff: lesson.tradeoff, takeaway: lesson.takeaway };
   const m = metrics();
   root.innerHTML = `
     <div id="hover-card" class="hover-card" role="status" aria-live="polite"><span class="hover-card-kicker">CONTEXT NOTE</span><strong data-card-title></strong><p data-card-body></p></div>
@@ -110,9 +122,9 @@ function render() {
       <section class="lab-section section-shell" id="lab">
         <div class="lesson-layout"><aside class="lesson-sidebar"><div class="sidebar-heading"><span class="lesson-label">MODULE MAP</span><strong>Choose a lesson</strong></div><nav aria-label="Lesson navigation">${lessons.map((item, index) => `<button class="lesson-nav-item ${index === state.chapter ? 'active' : ''}" data-chapter="${index}"><span>${item.kicker}</span><strong>${item.title}</strong><small>${item.question}</small></button>`).join('')}</nav></aside><div class="lesson-content">
         <div class="section-heading"><div><p class="eyebrow">${lesson.kicker}</p><h2>${lesson.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousLesson" ${state.chapter === 0 ? 'disabled' : ''}>← Previous</button><span>${state.chapter + 1} / ${lessons.length}</span><button class="step-button" data-action="nextLesson" ${state.chapter === lessons.length - 1 ? 'disabled' : ''}>Next →</button></div></div>
-        <p class="section-intro">${lesson.question} ${lesson.explanation}</p>
-        <article class="reading-panel"><div class="reading-header"><div><span class="lesson-label">READ THE CONCEPT</span><h3>${lesson.title}</h3></div><span class="reading-index">${String(state.chapter + 1).padStart(2, '0')} / ${String(lessons.length).padStart(2, '0')}</span></div><p class="reading-intro">${lessonReading.intro}</p><div class="reading-sections">${lessonReading.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.formula ? `<code>${section.formula}</code>` : ''}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('')}</div></article>
-        <div class="lesson-strip"><div class="lesson-column"><span class="lesson-label">INTUITION</span><p>${lesson.analogy}</p></div><div class="lesson-column"><span class="lesson-label">WHAT TO WATCH</span><p>${lesson.visual}</p></div><div class="lesson-column"><span class="lesson-label">TRADE-OFF</span><p>${lesson.tradeoff}</p></div></div>
+        <p class="section-intro">${lessonCopy.question} ${lessonCopy.explanation}</p>
+        <article class="reading-panel"><div class="reading-header"><div><span class="lesson-label">${state.eli5 ? 'ELI5 READING' : 'READ THE CONCEPT'}</span><h3>${lesson.title}</h3></div><span class="reading-index">${String(state.chapter + 1).padStart(2, '0')} / ${String(lessons.length).padStart(2, '0')}</span></div><p class="reading-intro">${lessonCopy.intro}</p><div class="reading-sections">${lessonCopy.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.formula ? `<code>${section.formula}</code>` : ''}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('')}</div></article>
+        <div class="lesson-strip"><div class="lesson-column"><span class="lesson-label">INTUITION</span><p>${lessonCopy.analogy}</p></div><div class="lesson-column"><span class="lesson-label">WHAT TO WATCH</span><p>${lessonCopy.visual}</p></div><div class="lesson-column"><span class="lesson-label">TRADE-OFF</span><p>${lessonCopy.tradeoff}</p></div></div>
         <div class="lab-grid">
           <div class="visual-panel info-target" tabindex="0" data-info-title="Token history representation" data-info-body="The canvas is a symbolic view. It samples long contexts so the browser does not create thousands of heavy objects, while the formulas still use the full token count.">
             <div class="panel-topline"><span class="panel-label">LIVE MEMORY MODEL</span><span class="panel-note">Simplified estimate · not a benchmark</span></div>
@@ -132,7 +144,7 @@ function render() {
           <div class="metric-card info-target" tabindex="0" data-info-title="Users within budget" data-info-body="A simple capacity estimate: available GPU memory divided by the current per-user cache. Real serving systems also account for scheduling and other buffers."><span>Users within budget</span><strong>${m.fit}</strong><small>of ${state.users} requested</small></div>
           <div class="metric-card info-target" tabindex="0" data-info-title="Direct retrieval" data-info-body="A conceptual teaching score for how directly the architecture can address token-level history. It is not a benchmark or a quality claim."><span>Direct retrieval</span><strong>${Math.round(m.retrieval)}<small>/100</small></strong><small>conceptual score</small></div>
         </div>
-        <div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lesson.takeaway}</strong></div><details class="check-card"><summary>Check your understanding</summary><p>${lesson.check.prompt}</p><span>${lesson.check.answer}</span></details></div>
+        <div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lessonCopy.takeaway}</strong></div><details class="check-card"><summary>Check your understanding</summary><p>${state.eli5 ? `In simple words: ${lessonCopy.question}` : lesson.check.prompt}</p><span>${state.eli5 ? lessonCopy.takeaway : lesson.check.answer}</span></details></div>
         </div></div>
       </section>
 
@@ -151,6 +163,15 @@ function render() {
 }
 
 function bindEvents() {
+  const sidebarHeading = document.querySelector<HTMLElement>('#lab .sidebar-heading');
+  if (sidebarHeading && !sidebarHeading.querySelector('[data-action="toggleEli5"]')) {
+    const toggle = document.createElement('button');
+    toggle.className = `eli5-toggle ${state.eli5 ? 'active' : ''}`;
+    toggle.dataset.action = 'toggleEli5';
+    toggle.setAttribute('aria-pressed', String(state.eli5));
+    toggle.innerHTML = `ELI5 <span>${state.eli5 ? 'ON' : 'OFF'}</span>`;
+    sidebarHeading.appendChild(toggle);
+  }
   document.querySelector<HTMLInputElement>('#tokens')?.addEventListener('input', (event) => { state.tokens = Number((event.target as HTMLInputElement).value); render(); });
   document.querySelector<HTMLInputElement>('#users')?.addEventListener('input', (event) => { state.users = Number((event.target as HTMLInputElement).value); render(); });
   document.querySelector<HTMLInputElement>('#window')?.addEventListener('input', (event) => { state.window = Number((event.target as HTMLInputElement).value); render(); });
@@ -161,6 +182,7 @@ function bindEvents() {
   document.querySelector<HTMLButtonElement>('[data-action="start"]')?.addEventListener('click', () => document.querySelector('#lab')?.scrollIntoView({ behavior: state.reducedMotion ? 'auto' : 'smooth' }));
   document.querySelector<HTMLButtonElement>('[data-action="reference"]')?.addEventListener('click', () => document.querySelector('#reference')?.scrollIntoView({ behavior: state.reducedMotion ? 'auto' : 'smooth' }));
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; render(); });
+  document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { state.eli5 = !state.eli5; render(); });
   document.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener('click', () => { Object.assign(state, { tokens: 1280, users: 12, window: 128, architecture: 'attention', chapter: 0 }); render(); window.scrollTo({ top: 0, behavior: 'auto' }); });
 }
 
@@ -192,6 +214,7 @@ function bindInfoCards() {
 
 function renderResearch() {
   const chapter = attentionPaperChapters[state.chapter % attentionPaperChapters.length];
+    const researchBody = state.eli5 ? attentionPaperEli5[state.chapter % attentionPaperEli5.length][1] : chapter.body;
   const paper = researchPapers[0];
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a><a href="#research">RESEARCH PAPERS</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
@@ -202,10 +225,25 @@ function renderResearch() {
 }
 
 function bindResearchEvents() {
+  const currentChapter = attentionPaperChapters[state.chapter % attentionPaperChapters.length];
+  const body = document.querySelector<HTMLElement>('.paper-reading-body');
+  const takeaway = document.querySelector<HTMLElement>('.paper-takeaway strong');
+  if (body) body.textContent = state.eli5 ? attentionPaperEli5[state.chapter % attentionPaperEli5.length][1] : currentChapter.body;
+  if (takeaway) takeaway.textContent = state.eli5 ? 'Think of it as giving every word a chance to look around for helpful clues.' : currentChapter.takeaway;
+  const sidebarHeading = document.querySelector<HTMLElement>('.paper-reader-nav .sidebar-heading');
+  if (sidebarHeading && !sidebarHeading.querySelector('[data-action="toggleEli5"]')) {
+    const toggle = document.createElement('button');
+    toggle.className = `eli5-toggle ${state.eli5 ? 'active' : ''}`;
+    toggle.dataset.action = 'toggleEli5';
+    toggle.setAttribute('aria-pressed', String(state.eli5));
+    toggle.innerHTML = `ELI5 <span>${state.eli5 ? 'ON' : 'OFF'}</span>`;
+    sidebarHeading.appendChild(toggle);
+  }
   document.querySelectorAll<HTMLButtonElement>('[data-research-chapter]').forEach((button) => button.addEventListener('click', () => { state.chapter = Number(button.dataset.researchChapter); renderResearch(); }));
   document.querySelector<HTMLButtonElement>('[data-action="previousResearch"]')?.addEventListener('click', () => { state.chapter = Math.max(0, state.chapter - 1); renderResearch(); });
   document.querySelector<HTMLButtonElement>('[data-action="nextResearch"]')?.addEventListener('click', () => { state.chapter = Math.min(attentionPaperChapters.length - 1, state.chapter + 1); renderResearch(); });
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderResearch(); });
+  document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { state.eli5 = !state.eli5; renderResearch(); });
 }
 
 function renderTransformer() {
