@@ -2,7 +2,16 @@ import './style.css';
 import { lessons } from './lessonData';
 import { reading } from './lessonReading';
 import { researchPapers, transformerLessons, tokenDetectiveData } from './transformerData';
-import { attentionPaperChapters, attentionPaperEli5, upcomingPapers, telephoneVsLaserData } from './researchData';
+import {
+  attentionPaperChapters,
+  attentionPaperEli5,
+  upcomingPapers,
+  telephoneVsLaserData,
+  volumeDialDemo,
+  eightGlassesData,
+  rhythmClockData,
+  translationRoomEvolution
+} from './researchData';
 
 type Architecture = 'attention' | 'window' | 'linear' | 'ssm' | 'mamba' | 'hybrid';
 
@@ -39,8 +48,13 @@ const generatorState = {
   needleArch: 'attention' as 'attention' | 'window' | 'mamba'
 };
 
-const researchInteractiveState = {
-  mode: 'transformer' as 'rnn' | 'transformer'
+const researchViewState = {
+  mode: 'transformer' as 'rnn' | 'transformer',
+  activeTrack: 'story' as 'story' | 'volume' | 'glasses' | 'clocks' | 'evolution',
+  volumeMode: 'scaled' as 'scaled' | 'unscaled',
+  activeGlassesId: 'glasses-1',
+  activeClockWordIdx: 1,
+  activeRoomId: 'room-3'
 };
 
 const transformerState = { lesson: 0, tokens: 7, heads: 4, depth: 12, path: 2, query: 4, eli5: false };
@@ -482,7 +496,7 @@ function bindInfoCards() {
 function renderResearch() {
   const chapter = attentionPaperChapters[state.chapter % attentionPaperChapters.length];
   const paper = researchPapers[0];
-  const telData = telephoneVsLaserData[researchInteractiveState.mode];
+  const telData = telephoneVsLaserData[researchViewState.mode];
   const telTokens = [
     { word: 'The', rnnState: 'Subject: Cat', status: 'active' },
     { word: 'cat', rnnState: 'Subject: Cat', status: 'active' },
@@ -492,6 +506,18 @@ function renderResearch() {
     { word: 'was', rnnState: 'Signal lost (???)', status: 'degraded' }
   ];
 
+  const volScenario = volumeDialDemo.scenarios[researchViewState.volumeMode];
+  const activeGlasses = eightGlassesData.find((g) => g.id === researchViewState.activeGlassesId) || eightGlassesData[0];
+  const sentenceWords = ['The', 'cat', 'sat', 'on', 'the', 'mat', 'because', 'it', 'was', 'tired'];
+  const activeRoom = translationRoomEvolution.find((r) => r.id === researchViewState.activeRoomId) || translationRoomEvolution[2];
+
+  // Analog Clock angles calculation (degrees)
+  const clockAngles = [
+    (researchViewState.activeClockWordIdx * 65) % 360,
+    (researchViewState.activeClockWordIdx * 24) % 360,
+    (researchViewState.activeClockWordIdx * 6) % 360
+  ];
+
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a><a href="#research">RESEARCH PAPERS</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
     <main id="research-top">
@@ -499,13 +525,13 @@ function renderResearch() {
         <div>
           <p class="eyebrow">Research paper 01 / Foundations track</p>
           <h1>Attention Is <em>All You Need.</em></h1>
-          <p class="hero-lede">A friendly, analogy-driven walk through the paper that introduced the Transformer. See why older models were like a slow game of telephone, and why attention felt like a laser pointer connecting any two words instantly.</p>
+          <p class="hero-lede">The breakthrough 2017 paper explained through simple, intuitive analogies. Learn why older models were stuck in a single-file game of telephone, how the Bilingual Newsroom replaced recurrence, and why dividing by √dₖ prevented one word from screaming.</p>
           <div class="paper-meta research-hero-meta"><span>${paper.year}</span><span>${paper.citation}</span><span>Vaswani et al.</span></div>
         </div>
         <div class="research-thesis">
-          <span class="lesson-label">THE PAPER IN ONE LINE</span>
-          <strong>Let every word ask which other words it should listen to.</strong>
-          <div class="research-thesis-flow"><span>tokens</span><b>→</b><span>parallel attention</span><b>→</b><span>context</span></div>
+          <span class="lesson-label">THE PAPER IN ONE ANALOGY</span>
+          <strong>Knock down the hallway walls: let every word talk and listen to every other word simultaneously.</strong>
+          <div class="research-thesis-flow"><span>50 people whispering</span><b>→</b><span>open room with laser pointers</span></div>
         </div>
       </section>
 
@@ -513,13 +539,13 @@ function renderResearch() {
       <section class="tel-laser-section section-shell">
         <div class="tel-laser-header">
           <div>
-            <span class="lesson-label">INTERACTIVE BREAKTHROUGH SIMULATOR</span>
+            <span class="lesson-label">THE FOUNDATIONAL ANALOGY</span>
             <h3>The Telephone Game vs. The Laser Pointer</h3>
-            <p>Why did the 2017 Transformer replace RNNs? Switch paradigms below to see the hardware bottleneck and information flow.</p>
+            <p>Why did the 2017 Transformer replace RNNs? Switch paradigms below to see the hardware bottleneck and memory loss.</p>
           </div>
           <div class="tel-mode-switcher">
-            <button class="tel-mode-btn ${researchInteractiveState.mode === 'rnn' ? 'active' : ''}" data-tel-mode="rnn">1986–2016: The Telephone Game (RNN)</button>
-            <button class="tel-mode-btn ${researchInteractiveState.mode === 'transformer' ? 'active' : ''}" data-tel-mode="transformer">2017: The Laser Pointer (Transformer)</button>
+            <button class="tel-mode-btn ${researchViewState.mode === 'rnn' ? 'active' : ''}" data-tel-mode="rnn">1986–2016: The Telephone Game (RNN)</button>
+            <button class="tel-mode-btn ${researchViewState.mode === 'transformer' ? 'active' : ''}" data-tel-mode="transformer">2017: The Laser Pointer (Transformer)</button>
           </div>
         </div>
 
@@ -530,20 +556,20 @@ function renderResearch() {
           </div>
           <div class="tel-nodes-wrap">
             ${telTokens.map((item, idx) => `
-              <div class="tel-node ${researchInteractiveState.mode === 'rnn' ? item.status : (idx === 1 || idx === 4 ? 'laser-target' : 'active')}">
+              <div class="tel-node ${researchViewState.mode === 'rnn' ? item.status : (idx === 1 || idx === 4 ? 'laser-target' : 'active')}">
                 <div class="tel-node-circle">${String(idx + 1).padStart(2, '0')}</div>
                 <span class="tel-node-token">“${item.word}”</span>
-                <span class="tel-node-whisper">${researchInteractiveState.mode === 'rnn' ? item.rnnState : (idx === 4 ? 'Query: “it”' : idx === 1 ? 'Key: “cat” 🎯' : 'Parallel Q/K/V')}</span>
+                <span class="tel-node-whisper">${researchViewState.mode === 'rnn' ? item.rnnState : (idx === 4 ? 'Query: “it”' : idx === 1 ? 'Key: “cat” 🎯' : 'Parallel Q/K/V')}</span>
               </div>
               ${idx < telTokens.length - 1 ? `
-                <div class="tel-connector-line ${researchInteractiveState.mode === 'rnn' ? 'whisper-arrow' : 'laser-ray'}"></div>
+                <div class="tel-connector-line ${researchViewState.mode === 'rnn' ? 'whisper-arrow' : 'laser-ray'}"></div>
               ` : ''}
             `).join('')}
           </div>
           <div class="tel-gpu-meter">
-            <span>GPU HARDWARE UTILIZATION & ALGORITHMIC BOTTLENECK:</span>
-            <strong class="${researchInteractiveState.mode === 'transformer' ? 'good' : 'bad'}">
-              ${researchInteractiveState.mode === 'transformer' ? '⚡ 10,000 / 10,000 GPU CORES SATURATED (Parallel Q·Kᵀ Matrix Multiply · O(1) Training Time)' : '⚠️ 1 / 10,000 GPU CORES ACTIVE (Sequential Token Chain · Core 6 waits for Core 5)'}
+            <span>SUPERCOMPUTER HARDWARE BOTTLENECK:</span>
+            <strong class="${researchViewState.mode === 'transformer' ? 'good' : 'bad'}">
+              ${researchViewState.mode === 'transformer' ? '⚡ 10,000 / 10,000 GPU CORES SATURATED (All words look at once in parallel)' : '⚠️ 1 / 10,000 GPU CORES ACTIVE (Word 6 waits in line for Word 5 to whisper)'}
             </strong>
           </div>
         </div>
@@ -565,20 +591,383 @@ function renderResearch() {
         </div>
       </section>
 
-      <section class="paper-reader section-shell"><aside class="paper-reader-nav"><div class="sidebar-heading"><span class="lesson-label">PAPER MAP</span><strong>Read the argument</strong></div><nav aria-label="Research paper chapters">${attentionPaperChapters.map((item, index) => `<button class="paper-chapter ${index === state.chapter % attentionPaperChapters.length ? 'active' : ''}" data-research-chapter="${index}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${item.title}</strong><small>${item.label}</small></button>`).join('')}</nav></aside><article class="paper-reading"><div class="paper-reading-header"><div><span class="lesson-label">${chapter.label}</span><h2>${chapter.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousResearch" ${state.chapter === 0 ? 'disabled' : ''}>← Previous</button><span>${state.chapter + 1} / ${attentionPaperChapters.length}</span><button class="step-button" data-action="nextResearch" ${state.chapter === attentionPaperChapters.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="paper-reading-body">${chapter.body}</p>${chapter.formula ? `<code class="paper-formula">${chapter.formula}</code>` : ''}<div class="paper-takeaway"><span class="lesson-label">KEEP THIS IDEA</span><strong>${chapter.takeaway}</strong></div><div class="paper-activity"><span class="lesson-label">LOOK AT THE SYSTEM</span><p>${chapter.label === 'The mechanism' ? 'The Q / K / V path is the same idea that later creates the KV cache. Move to the KV-cache module after this chapter to see the serving cost.' : chapter.label === 'Why it mattered' ? 'The paper’s idea is architectural: make relationships between positions easy to compute in parallel. The exact model and training recipe can change around it.' : 'Read the chapter, then use the Transformer module to manipulate the corresponding stage.'}</p><a href="${chapter.label === 'The mechanism' ? '#top' : '#transformer'}">Open the related interactive module →</a></div></article></section>
-      <section class="upcoming-section section-shell"><div class="paper-heading"><div><p class="eyebrow">Research shelf</p><h2>More papers, coming soon.</h2><p>Each paper will get the same treatment: the problem, the idea, the mechanism, the evidence, and the engineering consequences.</p></div><span class="paper-count">${upcomingPapers.length} IN QUEUE</span></div><div class="upcoming-grid">${upcomingPapers.map(([title, description], index) => `<article class="upcoming-card"><span>COMING SOON · 0${index + 2}</span><h3>${title}</h3><p>${description}</p></article>`).join('')}</div></section>
+      <!-- 5-Track Interactive Analogy Navigation -->
+      <nav class="research-track-nav section-shell" aria-label="Research Paper Tracks">
+        <button class="research-track-btn ${researchViewState.activeTrack === 'story' ? 'active' : ''}" data-research-track="story">
+          <span>TRACK 01</span>
+          <strong>01. The Newsroom Story</strong>
+        </button>
+        <button class="research-track-btn ${researchViewState.activeTrack === 'volume' ? 'active' : ''}" data-research-track="volume">
+          <span>TRACK 02</span>
+          <strong>02. The Volume Dial (√dₖ)</strong>
+        </button>
+        <button class="research-track-btn ${researchViewState.activeTrack === 'glasses' ? 'active' : ''}" data-research-track="glasses">
+          <span>TRACK 03</span>
+          <strong>03. The 8 Pairs of Glasses</strong>
+        </button>
+        <button class="research-track-btn ${researchViewState.activeTrack === 'clocks' ? 'active' : ''}" data-research-track="clocks">
+          <span>TRACK 04</span>
+          <strong>04. The Orchestra Clocks</strong>
+        </button>
+        <button class="research-track-btn ${researchViewState.activeTrack === 'evolution' ? 'active' : ''}" data-research-track="evolution">
+          <span>TRACK 05</span>
+          <strong>05. From 2017 to ChatGPT</strong>
+        </button>
+      </nav>
+
+      <!-- ACTIVE TRACK CONTENT -->
+      ${researchViewState.activeTrack === 'story' ? `
+        <!-- TRACK 01: Narrative Newsroom Chapters -->
+        <section class="paper-reader section-shell">
+          <aside class="paper-reader-nav">
+            <div class="sidebar-heading">
+              <span class="lesson-label">THE STORY MAP</span>
+              <strong>8 Paper Chapters</strong>
+            </div>
+            <nav aria-label="Research paper chapters">
+              ${attentionPaperChapters.map((item, index) => `
+                <button class="paper-chapter ${index === state.chapter % attentionPaperChapters.length ? 'active' : ''}" data-research-chapter="${index}">
+                  <span>${String(index + 1).padStart(2, '0')}</span>
+                  <strong>${item.title}</strong>
+                  <small>${item.label}</small>
+                </button>
+              `).join('')}
+            </nav>
+          </aside>
+          <article class="paper-reading">
+            <div class="paper-reading-header">
+              <div>
+                <span class="lesson-label">CHAPTER ${String((state.chapter % attentionPaperChapters.length) + 1).padStart(2, '0')} · ${chapter.label.toUpperCase()}</span>
+                <h2>${chapter.title}</h2>
+              </div>
+              <div class="lesson-step-actions">
+                <button class="step-button" data-action="previousResearch" ${state.chapter === 0 ? 'disabled' : ''}>← Previous</button>
+                <span>${(state.chapter % attentionPaperChapters.length) + 1} / ${attentionPaperChapters.length}</span>
+                <button class="step-button" data-action="nextResearch" ${state.chapter === attentionPaperChapters.length - 1 ? 'disabled' : ''}>Next →</button>
+              </div>
+            </div>
+
+            <!-- Analogy Highlight Card -->
+            <div style="background: rgba(110, 210, 189, 0.08); border-left: 3px solid var(--teal); padding: 14px 18px; margin: 20px 0 16px; border-radius: 0 4px 4px 0;">
+              <span class="lesson-label">THE INTUITIVE ANALOGY</span>
+              <p style="margin: 4px 0 0; font-size: 14px; color: var(--ink); line-height: 1.5;">${chapter.analogy}</p>
+            </div>
+
+            <p class="paper-reading-body">${state.eli5 ? attentionPaperEli5[state.chapter % attentionPaperEli5.length][1] : chapter.body}</p>
+
+            <div class="paper-takeaway">
+              <span class="lesson-label" style="color: #43540a;">KEY TAKEAWAY TO REMEMBER</span>
+              <strong>${state.eli5 ? 'Think of it as giving every word a chance to look around for helpful clues.' : chapter.takeaway}</strong>
+            </div>
+
+            <div class="paper-activity">
+              <span class="lesson-label">INTERACTIVE LAB TRACKS</span>
+              <p>Want to see the physical metaphors in action? Explore the specialized analogy tracks above.</p>
+              <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px;">
+                <button class="primary-button" style="padding: 10px 14px; font-size: 12px;" data-research-track="volume">Try the Volume Dial 🎙️</button>
+                <button class="primary-button" style="padding: 10px 14px; font-size: 12px; background: transparent; color: var(--teal); border-color: var(--teal);" data-research-track="glasses">Try the 8 Pairs of Glasses 👓</button>
+              </div>
+            </div>
+          </article>
+        </section>
+      ` : ''}
+
+      ${researchViewState.activeTrack === 'volume' ? `
+        <!-- TRACK 02: The Microphone Volume Dial -->
+        <section class="volume-dial-section section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Track 02 / The Volume Dial</p>
+              <h2>The Microphone Volume Dial (Why Scaling by √dₖ is Required)</h2>
+              <p class="section-intro" style="margin: 14px 0 0;">The Chorus vs. The Screaming Contest: How a simple volume dial saved AI from going deaf.</p>
+            </div>
+          </div>
+
+          <!-- Analogy Story Card -->
+          <div style="background: #09131a; border: 1px solid var(--line); border-left: 4px solid var(--lime); padding: 18px 22px; border-radius: 4px; margin: 20px 0 24px;">
+            <span class="lesson-label">THE STORY OF THE SCREAMING CONTEST</span>
+            <p style="font-size: 14px; color: var(--ink); line-height: 1.6; margin: 8px 0 0;">${volumeDialDemo.analogyStory}</p>
+          </div>
+
+          <!-- Volume Mode Toggle -->
+          <div class="volume-toggle-bar">
+            <button class="volume-mode-btn ${researchViewState.volumeMode === 'scaled' ? 'active scaled' : ''}" data-volume-mode="scaled">
+              🟢 BALANCED VOLUME (Scaling ON: divide by √dₖ)
+            </button>
+            <button class="volume-mode-btn ${researchViewState.volumeMode === 'unscaled' ? 'active unscaled' : ''}" data-volume-mode="unscaled">
+              🔴 VOLUME TOO LOUD (Scaling OFF: Raw Unscaled Shouting)
+            </button>
+          </div>
+
+          <!-- Status Banner -->
+          <div class="volume-status-banner ${researchViewState.volumeMode}">
+            <strong style="display: block; font-family: 'Space Grotesk', sans-serif; font-size: 16px; margin-bottom: 4px;">${volScenario.status}</strong>
+            <p style="margin: 0; font-size: 13px; line-height: 1.5;">${volScenario.explanation}</p>
+          </div>
+
+          <!-- Vocal Volume Bars Table -->
+          <div class="volume-bars-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); border-bottom: 1px solid var(--line); padding-bottom: 10px;">
+              <span>WORD (KEY CANDIDATE)</span>
+              <span>HOW MUCH ATTENTION DOES "it" GIVE THIS WORD?</span>
+            </div>
+
+            <div class="volume-bars-table">
+              ${volScenario.weights.map((item) => `
+                <div class="volume-bar-row">
+                  <span class="volume-word">“${item.word}”</span>
+                  <span class="volume-role">${item.role}</span>
+                  <div class="volume-track">
+                    <div class="volume-fill ${researchViewState.volumeMode} ${item.isMain ? 'main-winner' : ''}" style="width: ${item.pct}%;"></div>
+                  </div>
+                  <span class="volume-pct">${item.pct}%</span>
+                </div>
+              `).join('')}
+            </div>
+
+            <!-- Gradient Health Box -->
+            <div style="margin-top: 20px; padding: 14px 16px; background: rgba(0,0,0,0.3); border-radius: 4px; border: 1px solid var(--line);">
+              <span class="lesson-label" style="color: ${researchViewState.volumeMode === 'scaled' ? 'var(--teal)' : 'var(--coral)'};">
+                LEARNING HEALTH STATUS:
+              </span>
+              <p style="font-size: 13px; font-family: 'DM Mono', monospace; margin: 4px 0 0; color: var(--ink);">
+                ${volScenario.gradientHealth}
+              </p>
+            </div>
+          </div>
+        </section>
+      ` : ''}
+
+      ${researchViewState.activeTrack === 'glasses' ? `
+        <!-- TRACK 03: The 8 Pairs of Glasses -->
+        <section class="glasses-section section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Track 03 / Multi-Head Attention</p>
+              <h2>The 8 Pairs of Glasses (Multi-Head Attention)</h2>
+              <p class="section-intro" style="margin: 14px 0 0;">You can't read a complex story with only one pair of eyes. Click each pair of glasses below to see what specialized clue that head inspects in the sentence.</p>
+            </div>
+          </div>
+
+          <!-- Sentence Spotlight Bar -->
+          <div class="spotlight-sentence-box">
+            <div class="spotlight-sentence-label">
+              <span>SENTENCE INSPECTED BY: <strong style="color: ${activeGlasses.color};">${activeGlasses.name.toUpperCase()}</strong></span>
+              <span>Head 0${activeGlasses.headNumber} of 08</span>
+            </div>
+
+            <div class="spotlight-tokens-wrap">
+              ${sentenceWords.map((word) => {
+                const isFocused = activeGlasses.focusedWords.includes(word);
+                return `
+                  <span class="spotlight-token ${isFocused ? 'focused' : ''}" style="${isFocused ? `background: ${activeGlasses.color}; color: #09131a; border-color: ${activeGlasses.color};` : ''}">
+                    ${word}
+                    ${isFocused ? `<b style="position: absolute; top: -8px; right: -4px; width: 8px; height: 8px; border-radius: 50%; background: #ffffff;"></b>` : ''}
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- 8 Glasses Selector Grid -->
+          <div class="glasses-selector-grid">
+            ${eightGlassesData.map((g) => `
+              <button class="glasses-card-btn ${g.id === researchViewState.activeGlassesId ? 'active' : ''}" data-glasses-id="${g.id}">
+                <span class="head-num">HEAD 0${g.headNumber} · ${g.badge}</span>
+                <strong>${g.name}</strong>
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- Active Glasses Detail Panel -->
+          <div class="glasses-detail-box" style="border-left-color: ${activeGlasses.color};">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;">
+              <h3 style="margin: 0; font-size: 20px; font-family: 'Space Grotesk', sans-serif; color: var(--ink);">
+                Head 0${activeGlasses.headNumber}: ${activeGlasses.name}
+              </h3>
+              <span style="font: 11px 'DM Mono', monospace; color: ${activeGlasses.color};">${activeGlasses.badge}</span>
+            </div>
+
+            <p style="color: var(--ink); font-size: 15px; line-height: 1.5; margin: 8px 0 14px;">
+              <strong>Question It Asks:</strong> "${activeGlasses.question}"
+            </p>
+
+            <div style="background: rgba(0,0,0,0.3); padding: 12px 14px; border-radius: 4px; margin-bottom: 14px;">
+              <span class="lesson-label">WHAT THIS HEAD FOUND IN THE SENTENCE</span>
+              <p style="font-size: 13px; color: var(--muted); line-height: 1.5; margin: 4px 0 0;">${activeGlasses.explanation}</p>
+            </div>
+
+            <div style="background: rgba(255,255,255,0.04); padding: 12px 14px; border-radius: 4px;">
+              <span class="lesson-label">THE REAL-WORLD ANALOGY</span>
+              <p style="font-size: 13px; color: var(--ink); line-height: 1.5; margin: 4px 0 0;">${activeGlasses.analogy}</p>
+            </div>
+          </div>
+        </section>
+      ` : ''}
+
+      ${researchViewState.activeTrack === 'clocks' ? `
+        <!-- TRACK 04: The Orchestra Clocks -->
+        <section class="clocks-section section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Track 04 / Positional Encodings</p>
+              <h2>The Orchestra Clocks (Positional Encodings Made Intuitive)</h2>
+              <p class="section-intro" style="margin: 14px 0 0;">Without an order, words are just Scrabble tiles scattered on a table. See how musical rhythm clocks give every word a timestamp without counting.</p>
+            </div>
+          </div>
+
+          <!-- Analogy Intro -->
+          <div style="background: #09131a; border: 1px solid var(--line); border-left: 4px solid var(--violet); padding: 18px 22px; border-radius: 4px; margin: 20px 0 24px;">
+            <span class="lesson-label">THE SCRABBLE TILE DILEMMA</span>
+            <p style="font-size: 14px; color: var(--ink); line-height: 1.6; margin: 8px 0 0;">${rhythmClockData.story}</p>
+          </div>
+
+          <!-- Word Picker -->
+          <div>
+            <span class="lesson-label">CLICK ANY WORD TO INSPECT ITS RHYTHM CLOCK TIMESTAMPS:</span>
+            <div class="clock-token-picker">
+              ${sentenceWords.map((word, idx) => `
+                <button class="clock-token-btn ${idx === researchViewState.activeClockWordIdx ? 'active' : ''}" data-clock-word="${idx}">
+                  ${idx}: "${word}"
+                </button>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- 3 Analog Clock Dials Grid -->
+          <div class="clock-faces-grid">
+            ${rhythmClockData.clockTypes.map((clock, i) => {
+              const angleDeg = clockAngles[i];
+              const angleRad = (angleDeg * Math.PI) / 180;
+              const handX = 50 + 32 * Math.cos(angleRad - Math.PI / 2);
+              const handY = 50 + 32 * Math.sin(angleRad - Math.PI / 2);
+              return `
+                <div class="clock-face-card">
+                  <!-- Analog Clock SVG -->
+                  <svg class="clock-dial-svg" viewBox="0 0 100 100" width="90" height="90" aria-label="Analog clock dial">
+                    <circle cx="50" cy="50" r="44" fill="#0c1822" stroke="var(--line)" stroke-width="2"/>
+                    <line x1="50" y1="10" x2="50" y2="16" stroke="var(--dim)" stroke-width="2"/>
+                    <line x1="90" y1="50" x2="84" y2="50" stroke="var(--dim)" stroke-width="2"/>
+                    <line x1="50" y1="90" x2="50" y2="84" stroke="var(--dim)" stroke-width="2"/>
+                    <line x1="10" y1="50" x2="16" y2="50" stroke="var(--dim)" stroke-width="2"/>
+                    <line x1="50" y1="50" x2="${handX}" y2="${handY}" stroke="${clock.color}" stroke-width="3.5" stroke-linecap="round"/>
+                    <circle cx="50" cy="50" r="4" fill="${clock.color}"/>
+                  </svg>
+                  <h4>${clock.name}</h4>
+                  <span class="clock-role">${clock.role} · ${clock.tempo}</span>
+                  <p>${clock.desc}</p>
+                  <div style="margin-top: 10px; font-family: 'DM Mono', monospace; font-size: 11px; color: ${clock.color};">
+                    Word ${researchViewState.activeClockWordIdx} angle: ${angleDeg}°
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- The Magic Insight Card -->
+          <div style="background: rgba(154, 137, 255, 0.08); border: 1px solid rgba(154, 137, 255, 0.2); border-left: 3px solid var(--violet); padding: 18px 22px; border-radius: 4px;">
+            <span class="lesson-label">THE MAGIC OF MUSICAL CLOCKS</span>
+            <h4 style="font: 500 17px 'Space Grotesk', sans-serif; color: var(--ink); margin: 6px 0 8px;">
+              ${rhythmClockData.magicInsight.heading}
+            </h4>
+            <p style="font-size: 13px; line-height: 1.6; color: var(--ink); margin: 0;">
+              ${rhythmClockData.magicInsight.body}
+            </p>
+          </div>
+        </section>
+      ` : ''}
+
+      ${researchViewState.activeTrack === 'evolution' ? `
+        <!-- TRACK 05: From Newsroom to ChatGPT -->
+        <section class="evolution-section section-shell">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Track 05 / 2017 to ChatGPT</p>
+              <h2>From the Bilingual Newsroom to Modern ChatGPT</h2>
+              <p class="section-intro" style="margin: 14px 0 0;">How a 2017 translation architecture evolved into modern AI—and why it created the KV Cache crisis.</p>
+            </div>
+          </div>
+
+          <!-- Era Cards -->
+          <div class="newsroom-cards-grid">
+            ${translationRoomEvolution.map((room) => `
+              <div class="newsroom-card ${room.id === researchViewState.activeRoomId ? 'active' : ''}" data-room-id="${room.id}">
+                <span class="era">${room.era}</span>
+                <h4>${room.role}</h4>
+                <p class="analogy-quote">“${room.analogy}”</p>
+                <span class="models">${room.models}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Active Era Details -->
+          <div style="background: #09131a; border: 1px solid var(--line); border-left: 4px solid var(--coral); padding: 22px 24px; border-radius: 4px; margin-bottom: 24px;">
+            <span class="lesson-label">ACTIVE PARADIGM DEEP DIVE</span>
+            <h3 style="margin: 6px 0 10px; font-size: 20px; font-family: 'Space Grotesk', sans-serif; color: var(--ink);">
+              ${activeRoom.role} (${activeRoom.era})
+            </h3>
+            <p style="color: var(--ink); font-size: 14px; line-height: 1.6; margin: 0 0 16px;">
+              ${activeRoom.howItWorks}
+            </p>
+
+            <div style="background: rgba(216,242,110,0.07); border: 1px solid rgba(216,242,110,0.2); padding: 14px 16px; border-radius: 4px;">
+              <span class="lesson-label" style="color: var(--lime);">THE KV CACHE MEMORY REALITY</span>
+              <p style="font-size: 13px; color: var(--ink); line-height: 1.5; margin: 4px 0 0;">
+                ${activeRoom.kvStatus}
+              </p>
+            </div>
+          </div>
+
+          <!-- Bridge Callout to Module 02 -->
+          <div style="background: #edf3d5; border-left: 4px solid #aabd31; padding: 20px 22px; border-radius: 4px;">
+            <span style="font: 10px 'DM Mono', monospace; color: #667c13; letter-spacing: .08em; text-transform: uppercase; font-weight: 600;">
+              THE FULL CIRCLE: FROM 2017 TRANSLATION TO 2024 KV CACHE SERVING
+            </span>
+            <h4 style="font: 500 18px 'Space Grotesk', sans-serif; color: #1a3014; margin: 6px 0 8px;">
+              Why the Solo Writer Created the KV Cache Crisis
+            </h4>
+            <p style="font-size: 13px; line-height: 1.55; color: #43540a; margin: 0;">
+              In 2017, translation used two separate desks (English and German). Modern AI (GPT-4, Claude, LLaMA) realized a single writer trained to guess the next word could do everything. But because the solo writer writes one word at a time, they must keep every past word’s notes on an expensive memory shelf. In long chats, this shelf overflows GPU memory—the exact bottleneck you explore in Module 02!
+            </p>
+            <div style="margin-top: 14px;">
+              <a href="#top" style="color: #2b570e; font-weight: 700; font-size: 13px; text-decoration: none;">
+                Jump to Module 02 (KV Cache Compression Lab) →
+              </a>
+            </div>
+          </div>
+        </section>
+      ` : ''}
+
+      <section class="upcoming-section section-shell">
+        <div class="paper-heading">
+          <div>
+            <p class="eyebrow">Research shelf</p>
+            <h2>More foundational papers, coming soon.</h2>
+            <p>Each paper receives the same friendly treatment: the core problem, the big idea, vivid physical analogies, and systems engineering consequences.</p>
+          </div>
+          <span class="paper-count">${upcomingPapers.length} IN QUEUE</span>
+        </div>
+        <div class="upcoming-grid">
+          ${upcomingPapers.map(([title, description], index) => `
+            <article class="upcoming-card">
+              <span>COMING SOON · 0${index + 2}</span>
+              <h3>${title}</h3>
+              <p>${description}</p>
+            </article>
+          `).join('')}
+        </div>
+      </section>
     </main>
-    <footer class="footer section-shell"><span>AI SYSTEMS LAB / RESEARCH PAPERS</span><a class="text-button" href="#transformer">Back to Transformer →</a></footer>
+    <footer class="footer section-shell">
+      <span>AI SYSTEMS LAB / RESEARCH PAPERS</span>
+      <a class="text-button" href="#transformer">Back to Transformer →</a>
+    </footer>
   `;
   bindResearchEvents();
 }
 
 function bindResearchEvents() {
-  const currentChapter = attentionPaperChapters[state.chapter % attentionPaperChapters.length];
-  const body = document.querySelector<HTMLElement>('.paper-reading-body');
-  const takeaway = document.querySelector<HTMLElement>('.paper-takeaway strong');
-  if (body) body.textContent = state.eli5 ? attentionPaperEli5[state.chapter % attentionPaperEli5.length][1] : currentChapter.body;
-  if (takeaway) takeaway.textContent = state.eli5 ? 'Think of it as giving every word a chance to look around for helpful clues.' : currentChapter.takeaway;
+  // ELI5 Toggle
   const sidebarHeading = document.querySelector<HTMLElement>('.paper-reader-nav .sidebar-heading');
   if (sidebarHeading && !sidebarHeading.querySelector('[data-action="toggleEli5"]')) {
     const toggle = document.createElement('button');
@@ -588,17 +977,78 @@ function bindResearchEvents() {
     toggle.innerHTML = `ELI5 <span>${state.eli5 ? 'ON' : 'OFF'}</span>`;
     sidebarHeading.appendChild(toggle);
   }
-  document.querySelectorAll<HTMLButtonElement>('[data-research-chapter]').forEach((button) => button.addEventListener('click', () => { state.chapter = Number(button.dataset.researchChapter); renderResearch(); }));
-  document.querySelector<HTMLButtonElement>('[data-action="previousResearch"]')?.addEventListener('click', () => { state.chapter = Math.max(0, state.chapter - 1); renderResearch(); });
-  document.querySelector<HTMLButtonElement>('[data-action="nextResearch"]')?.addEventListener('click', () => { state.chapter = Math.min(attentionPaperChapters.length - 1, state.chapter + 1); renderResearch(); });
-  document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderResearch(); });
-  document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { state.eli5 = !state.eli5; renderResearch(); });
 
+  // Telephone / Laser Mode Switcher
   document.querySelectorAll<HTMLButtonElement>('[data-tel-mode]').forEach((btn) => {
     btn.addEventListener('click', () => {
-      researchInteractiveState.mode = btn.dataset.telMode as 'rnn' | 'transformer';
+      researchViewState.mode = btn.dataset.telMode as 'rnn' | 'transformer';
       renderResearch();
     });
+  });
+
+  // Track Navigation Bar
+  document.querySelectorAll<HTMLButtonElement>('[data-research-track]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      researchViewState.activeTrack = btn.dataset.researchTrack as any;
+      renderResearch();
+    });
+  });
+
+  // Track 01: Narrative Chapters
+  document.querySelectorAll<HTMLButtonElement>('[data-research-chapter]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.chapter = Number(button.dataset.researchChapter);
+      renderResearch();
+    });
+  });
+  document.querySelector<HTMLButtonElement>('[data-action="previousResearch"]')?.addEventListener('click', () => {
+    state.chapter = Math.max(0, state.chapter - 1);
+    renderResearch();
+  });
+  document.querySelector<HTMLButtonElement>('[data-action="nextResearch"]')?.addEventListener('click', () => {
+    state.chapter = Math.min(attentionPaperChapters.length - 1, state.chapter + 1);
+    renderResearch();
+  });
+  document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => {
+    state.eli5 = !state.eli5;
+    renderResearch();
+  });
+
+  // Track 02: Volume Mode
+  document.querySelectorAll<HTMLButtonElement>('[data-volume-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      researchViewState.volumeMode = btn.dataset.volumeMode as 'scaled' | 'unscaled';
+      renderResearch();
+    });
+  });
+
+  // Track 03: 8 Pairs of Glasses
+  document.querySelectorAll<HTMLButtonElement>('[data-glasses-id]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      researchViewState.activeGlassesId = btn.dataset.glassesId!;
+      renderResearch();
+    });
+  });
+
+  // Track 04: Orchestra Clocks Word Picker
+  document.querySelectorAll<HTMLButtonElement>('[data-clock-word]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      researchViewState.activeClockWordIdx = Number(btn.dataset.clockWord);
+      renderResearch();
+    });
+  });
+
+  // Track 05: Evolution Rooms
+  document.querySelectorAll<HTMLElement>('[data-room-id]').forEach((card) => {
+    card.addEventListener('click', () => {
+      researchViewState.activeRoomId = card.dataset.roomId!;
+      renderResearch();
+    });
+  });
+
+  document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => {
+    state.reducedMotion = !state.reducedMotion;
+    renderResearch();
   });
 }
 
@@ -813,6 +1263,10 @@ function drawCanvas() {
   context.fillStyle = 'rgba(216,242,110,.12)'; context.fillRect(24, 52, width - 48, 5); context.fillStyle = m.pressure > 100 ? '#ff9770' : '#d8f26e'; context.fillRect(24, 52, pressureWidth, 5);
 }
 
-window.addEventListener('resize', () => { drawCanvas(); drawTransformerCanvas(); });
+window.addEventListener('resize', () => {
+  drawCanvas();
+  drawTransformerCanvas();
+});
 window.addEventListener('hashchange', render);
 render();
+
