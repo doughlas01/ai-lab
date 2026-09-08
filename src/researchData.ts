@@ -26,3 +26,48 @@ export const attentionPaperEli5 = [
   ['Why it mattered', 'The paper showed that this way of looking around could work very well for translation and could use powerful computers more efficiently during training.'],
   ['Engineering lens', 'Looking at every word is powerful, but a very long sentence creates lots of connections and saved cards. That is why engineers later had to think carefully about memory.']
 ];
+
+export const telephoneVsLaserData = {
+  rnn: {
+    title: 'The Telephone Game (RNN / LSTM)',
+    era: '1986 – 2016 Paradigm',
+    analogy: 'Imagine 50 people standing in a line. Person 1 whispers a secret to Person 2, who whispers to Person 3, all the way to Person 50.',
+    points: [
+      {
+        kicker: 'BOTTLENECK 01',
+        title: 'The Serial Wall (Hardware Starvation)',
+        desc: 'Token 50 cannot compute until Token 49 finishes. Modern GPUs have over 10,000 parallel tensor cores, but an RNN forces them to wait in a single-file line. Training takes weeks.'
+      },
+      {
+        kicker: 'BOTTLENECK 02',
+        title: 'Information Decay (Vanishing Context)',
+        desc: 'By the 50th whisper, nuances from the beginning of the sentence are squashed into a fixed-size vector. Long-range context is lost.'
+      }
+    ],
+    summaryBadge: 'Serial: O(N) sequential steps · High information decay'
+  },
+  transformer: {
+    title: 'The Laser Pointer (Transformer Attention)',
+    era: '2017 Breakthrough (Attention Is All You Need)',
+    analogy: 'Give all 50 people laser pointers. In a single instant, every person points their laser directly at whoever holds relevant clues.',
+    points: [
+      {
+        kicker: 'BREAKTHROUGH 01',
+        title: 'Full Hardware Parallelism',
+        desc: 'All N tokens compute their relationships simultaneously via parallel Matrix Multiplications (Q·Kᵀ). Every GPU core is active, dropping training time by 10x–100x.'
+      },
+      {
+        kicker: 'BREAKTHROUGH 02',
+        title: 'Zero-Decay Direct Access',
+        desc: 'Token 50 connects to Token 1 with the exact same direct precision as Token 49. No intermediate telephone whispers to corrupt the signal.'
+      },
+      {
+        kicker: 'THE 2024 INFERENCE CATCH',
+        title: 'The KV Cache Bottleneck',
+        desc: 'Training is parallel because the full text is known. But in live inference, text is generated one token at a time. Storing every past laser target for every user creates the massive KV-cache memory pressure explored in Module 2!'
+      }
+    ],
+    summaryBadge: 'Parallel: O(1) training steps · Direct O(1) distance lookups'
+  }
+};
+

@@ -1,8 +1,8 @@
 import './style.css';
 import { lessons } from './lessonData';
 import { reading } from './lessonReading';
-import { researchPapers, transformerLessons } from './transformerData';
-import { attentionPaperChapters, attentionPaperEli5, upcomingPapers } from './researchData';
+import { researchPapers, transformerLessons, tokenDetectiveData } from './transformerData';
+import { attentionPaperChapters, attentionPaperEli5, upcomingPapers, telephoneVsLaserData } from './researchData';
 
 type Architecture = 'attention' | 'window' | 'linear' | 'ssm' | 'mamba' | 'hybrid';
 
@@ -28,8 +28,24 @@ const architectureLabels: Record<Architecture, string> = {
 const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0, eli5: false };
 const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights: 10 };
 const root = document.querySelector<HTMLDivElement>('#app')!;
+
+const generatorState = {
+  promptTokens: ['The', 'secret', 'key', 'is', 'ALPHA-99', '.', 'Please', 'confirm', 'key', ':'],
+  generationTokens: ['ALPHA-99', '.', 'Access', 'granted', 'to', 'user', '.'],
+  step: 0,
+  useCache: true,
+  isPlaying: false,
+  timer: null as number | null,
+  needleArch: 'attention' as 'attention' | 'window' | 'mamba'
+};
+
+const researchInteractiveState = {
+  mode: 'transformer' as 'rnn' | 'transformer'
+};
+
 const transformerState = { lesson: 0, tokens: 7, heads: 4, depth: 12, path: 2, query: 4, eli5: false };
 const transformerPath = ['Token embeddings', 'Position signal', 'Self-attention', 'MLP / residual update', 'Prediction head'];
+
 const demoTokens = ['The', 'cat', 'sat', 'because', 'it', 'was', 'tired'];
 const transformerPathDetails = [
   ['Token embeddings', 'Token IDs become learned vectors. This is where text enters the numerical model.', 'Input shape: sequence length × model width'],
@@ -83,6 +99,67 @@ function metrics() {
   return { perUser, total, available, fit, retrieval, bounded, pressure: Math.min(100, (total / available) * 100) };
 }
 
+function getGeneratorMetrics() {
+  const promptLen = generatorState.promptTokens.length;
+  const currentGen = generatorState.generationTokens.slice(0, generatorState.step);
+  const currentSeqLen = promptLen + generatorState.step;
+  
+  const stepCost = generatorState.useCache
+    ? (generatorState.step === 0 ? promptLen : 1)
+    : (generatorState.step === 0 ? promptLen : currentSeqLen);
+
+  let withCacheTotal = promptLen + generatorState.step;
+  let withoutCacheTotal = promptLen;
+  for (let i = 1; i <= generatorState.step; i++) {
+    withoutCacheTotal += (promptLen + i);
+  }
+  const wastedOps = withoutCacheTotal - withCacheTotal;
+
+  const windowSize = 6;
+  const windowStart = Math.max(0, currentSeqLen - windowSize);
+  const needleIdx = 4;
+  const isNeedleEvicted = generatorState.needleArch === 'window' && needleIdx < windowStart;
+
+  let needleAnswer = 'ALPHA-99';
+  let needleSuccess = true;
+  let needleExplanation = 'Direct retrieval from VRAM memory slot 4.';
+
+  if (generatorState.needleArch === 'window') {
+    if (isNeedleEvicted) {
+      needleAnswer = '[FORGOTTEN / HALLUCINATED: "ERR-00"]';
+      needleSuccess = false;
+      needleExplanation = `Position 4 fell outside the active ${windowSize}-token window! The model cannot attend to what was evicted.`;
+    } else {
+      needleAnswer = 'ALPHA-99';
+      needleSuccess = true;
+      needleExplanation = `Position 4 is still inside the active ${windowSize}-token window.`;
+    }
+  } else if (generatorState.needleArch === 'mamba') {
+    needleAnswer = 'ALPHA-99';
+    needleSuccess = true;
+    needleExplanation = 'Input-dependent selective state recognized the key as important and preserved it in fixed-size state memory.';
+  } else {
+    needleAnswer = 'ALPHA-99';
+    needleSuccess = true;
+    needleExplanation = 'Full attention preserved all Key & Value activations in VRAM. Complete recall.';
+  }
+
+  return {
+    promptLen,
+    currentGen,
+    currentSeqLen,
+    stepCost,
+    wastedOps,
+    windowStart,
+    windowSize,
+    needleIdx,
+    isNeedleEvicted,
+    needleAnswer,
+    needleSuccess,
+    needleExplanation
+  };
+}
+
 function render() {
   if (window.location.hash === '#research') {
     renderResearch();
@@ -96,6 +173,8 @@ function render() {
   const lessonReading = reading[lesson.id];
   const lessonCopy = state.eli5 ? kvEli5[lesson.id] : { question: lesson.question, explanation: lesson.explanation, intro: lessonReading.intro, sections: lessonReading.sections, analogy: lesson.analogy, visual: lesson.visual, tradeoff: lesson.tradeoff, takeaway: lesson.takeaway };
   const m = metrics();
+  const genM = getGeneratorMetrics();
+
   root.innerHTML = `
     <div id="hover-card" class="hover-card" role="status" aria-live="polite"><span class="hover-card-kicker">CONTEXT NOTE</span><strong data-card-title></strong><p data-card-body></p></div>
     <header class="topbar">
@@ -144,6 +223,135 @@ function render() {
           <div class="metric-card info-target" tabindex="0" data-info-title="Users within budget" data-info-body="A simple capacity estimate: available GPU memory divided by the current per-user cache. Real serving systems also account for scheduling and other buffers."><span>Users within budget</span><strong>${m.fit}</strong><small>of ${state.users} requested</small></div>
           <div class="metric-card info-target" tabindex="0" data-info-title="Direct retrieval" data-info-body="A conceptual teaching score for how directly the architecture can address token-level history. It is not a benchmark or a quality claim."><span>Direct retrieval</span><strong>${Math.round(m.retrieval)}<small>/100</small></strong><small>conceptual score</small></div>
         </div>
+
+        <!-- Step-by-Step Autoregressive Generator & VRAM Shelf Playground -->
+        <section class="generator-section">
+          <div class="generator-header">
+            <div>
+              <span class="lesson-label">STEP-BY-STEP GENERATION & VRAM SIMULATOR</span>
+              <h3>Why do we need a KV Cache?</h3>
+              <p>Watch autoregressive decoding in action. Toggle between saving activations vs. recomputing past words on every single step.</p>
+            </div>
+            <div class="cache-toggle-wrap">
+              <span>CACHING MODE:</span>
+              <button class="cache-mode-btn ${generatorState.useCache ? 'active' : ''}" data-cache-mode="cached">⚡ WITH KV CACHE</button>
+              <button class="cache-mode-btn ${!generatorState.useCache ? 'active no-cache' : ''}" data-cache-mode="no-cache">⚠️ WITHOUT CACHE (RECOMPUTE)</button>
+            </div>
+          </div>
+
+          <div class="generator-controls-bar">
+            <div class="generator-btn-group">
+              <button class="generator-btn primary" data-action="stepToken" ${generatorState.step >= generatorState.generationTokens.length ? 'disabled' : ''}>
+                ▶ Step Next Token (${generatorState.step} / ${generatorState.generationTokens.length})
+              </button>
+              <button class="generator-btn" data-action="toggleAutoPlay">
+                ${generatorState.isPlaying ? '⏸ Pause' : '⏯ Auto-play'}
+              </button>
+              <button class="generator-btn" data-action="resetGenerator">
+                ↺ Reset Sequence
+              </button>
+            </div>
+            <div class="cost-stat-chips">
+              <span class="cost-chip">Sequence: <strong>${genM.currentSeqLen} tokens</strong></span>
+              <span class="cost-chip">Current Step Compute: <strong>${genM.stepCost} token(s)</strong></span>
+            </div>
+          </div>
+
+          <div class="cost-banner ${generatorState.useCache ? 'cached' : 'no-cache'}">
+            <div>
+              ${generatorState.useCache
+                ? `<strong>⚡ O(1) EFFICIENT DECODE:</strong> Generating token <strong>"${generatorState.step === 0 ? 'prompt' : generatorState.generationTokens[generatorState.step - 1]}"</strong> only required computing <strong>1 new token</strong>. All previous ${genM.currentSeqLen - 1} Key & Value activations were loaded directly from the VRAM shelf!`
+                : `<strong>⚠️ O(N) NAIVE RECOMPUTATION:</strong> Generating token <strong>"${generatorState.step === 0 ? 'prompt' : generatorState.generationTokens[generatorState.step - 1]}"</strong> forced the GPU to re-compute all <strong>${genM.currentSeqLen} tokens from scratch</strong>! Cumulative wasted compute: <strong>+${genM.wastedOps} FLOPs</strong>!`
+              }
+            </div>
+          </div>
+
+          <div class="sequence-viewer">
+            <div class="sequence-label">
+              <span>AUTOREGRESSIVE TOKEN STREAM</span>
+              <span>${generatorState.step === 0 ? 'PREFILL STAGE (Prompt Input)' : 'DECODE STAGE (Token Generation)'}</span>
+            </div>
+            <div class="sequence-tokens">
+              ${generatorState.promptTokens.map((tok, i) => `
+                <span class="seq-token prompt ${i === 4 ? 'needle' : ''} ${!generatorState.useCache && generatorState.step > 0 ? 'recomputed' : ''}">
+                  ${tok}${i === 4 ? ' 🔑' : ''}
+                </span>
+              `).join('')}
+              ${genM.currentGen.map((tok, i) => `
+                <span class="seq-token generated ${i === genM.currentGen.length - 1 ? 'newest' : ''} ${!generatorState.useCache ? 'recomputed' : ''}">
+                  ${tok}
+                </span>
+              `).join('')}
+              ${generatorState.step < generatorState.generationTokens.length ? '<span class="typing-cursor"></span>' : ''}
+            </div>
+          </div>
+
+          <div class="shelf-container">
+            <div class="shelf-header">
+              <h4>VRAM Shelf: Stored Keys & Values (${genM.currentSeqLen} positions)</h4>
+              <span class="shelf-capacity">${generatorState.useCache ? 'Allocated in GPU Memory' : 'Empty (No Cache Stored)'}</span>
+            </div>
+            <div class="shelf-slots">
+              ${generatorState.useCache ? (
+                generatorState.needleArch === 'mamba'
+                  ? `
+                    <div class="shelf-slot needle">
+                      <div class="slot-token">ALPHA-99</div>
+                      <div class="slot-type">STATE: KEY</div>
+                    </div>
+                    <div class="shelf-slot active">
+                      <div class="slot-token">confirm</div>
+                      <div class="slot-type">STATE: TASK</div>
+                    </div>
+                    <div class="shelf-slot active">
+                      <div class="slot-token">${generatorState.step > 0 ? generatorState.generationTokens[generatorState.step - 1] : 'prompt'}</div>
+                      <div class="slot-type">STATE: LATEST</div>
+                    </div>
+                  `
+                  : Array.from({ length: genM.currentSeqLen }).map((_, idx) => {
+                      const allTokens = [...generatorState.promptTokens, ...genM.currentGen];
+                      const tok = allTokens[idx];
+                      const isNeedle = idx === 4;
+                      const isEvicted = generatorState.needleArch === 'window' && idx < genM.windowStart;
+                      return `
+                        <div class="shelf-slot ${isNeedle ? 'needle' : ''} ${isEvicted ? 'evicted' : 'active'}">
+                          <div class="slot-token">${tok}</div>
+                          <div class="slot-type">${isEvicted ? 'EVICTED' : 'K / V'}</div>
+                        </div>
+                      `;
+                    }).join('')
+              ) : `
+                <div style="grid-column: 1 / -1; padding: 12px; text-align: center; color: var(--dim); font-family: 'DM Mono', monospace; font-size: 11px;">
+                  No activations stored in VRAM. Every decoding step must re-run the entire sequence through all neural network layers from token 0.
+                </div>
+              `}
+            </div>
+          </div>
+
+          <div class="needle-card">
+            <div class="needle-top">
+              <h4>Architecture Needle Test: "What was the secret key?"</h4>
+              <div class="needle-arch-btns">
+                <button class="needle-arch-btn ${generatorState.needleArch === 'attention' ? 'active' : ''}" data-needle-arch="attention">Full Attention</button>
+                <button class="needle-arch-btn ${generatorState.needleArch === 'window' ? 'active' : ''}" data-needle-arch="window">Sliding Window (W=6)</button>
+                <button class="needle-arch-btn ${generatorState.needleArch === 'mamba' ? 'active' : ''}" data-needle-arch="mamba">Mamba State</button>
+              </div>
+            </div>
+            <div class="needle-result-box">
+              <div class="needle-result-item">
+                <span>MODEL RETRIEVAL OUTPUT</span>
+                <strong class="${genM.needleSuccess ? 'success' : 'failure'}">${genM.needleAnswer}</strong>
+                <p>${genM.needleExplanation}</p>
+              </div>
+              <div class="needle-result-item">
+                <span>SYSTEM MEMORY STATUS</span>
+                <strong>${generatorState.needleArch === 'attention' ? `${genM.currentSeqLen} slots in VRAM (O(N) growth)` : generatorState.needleArch === 'window' ? `${Math.min(genM.windowSize, genM.currentSeqLen)} slots in VRAM (Bounded)` : '3 state vectors (Fixed O(1) memory)'}</strong>
+                <p>${generatorState.needleArch === 'attention' ? 'Perfect accuracy, but memory increases with every generated word.' : generatorState.needleArch === 'window' ? (genM.isNeedleEvicted ? 'Memory bounded, but old context was evicted and forgotten!' : 'Memory bounded; secret key is still within window.') : 'Fixed memory footprint with input-dependent selectivity preserving the key.'}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lessonCopy.takeaway}</strong></div><details class="check-card"><summary>Check your understanding</summary><p>${state.eli5 ? `In simple words: ${lessonCopy.question}` : lesson.check.prompt}</p><span>${state.eli5 ? lessonCopy.takeaway : lesson.check.answer}</span></details></div>
         </div></div>
       </section>
@@ -184,7 +392,66 @@ function bindEvents() {
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; render(); });
   document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { state.eli5 = !state.eli5; render(); });
   document.querySelector<HTMLButtonElement>('[data-action="reset"]')?.addEventListener('click', () => { Object.assign(state, { tokens: 1280, users: 12, window: 128, architecture: 'attention', chapter: 0 }); render(); window.scrollTo({ top: 0, behavior: 'auto' }); });
+
+  // Generator Playground Event Listeners
+  document.querySelector<HTMLButtonElement>('[data-action="stepToken"]')?.addEventListener('click', () => {
+    if (generatorState.step < generatorState.generationTokens.length) {
+      generatorState.step++;
+      render();
+    }
+  });
+
+  document.querySelector<HTMLButtonElement>('[data-action="resetGenerator"]')?.addEventListener('click', () => {
+    generatorState.step = 0;
+    if (generatorState.timer) {
+      clearInterval(generatorState.timer);
+      generatorState.timer = null;
+    }
+    generatorState.isPlaying = false;
+    render();
+  });
+
+  document.querySelector<HTMLButtonElement>('[data-action="toggleAutoPlay"]')?.addEventListener('click', () => {
+    generatorState.isPlaying = !generatorState.isPlaying;
+    if (generatorState.isPlaying) {
+      if (generatorState.step >= generatorState.generationTokens.length) {
+        generatorState.step = 0;
+      }
+      generatorState.timer = window.setInterval(() => {
+        if (generatorState.step < generatorState.generationTokens.length) {
+          generatorState.step++;
+          render();
+        } else {
+          if (generatorState.timer) clearInterval(generatorState.timer);
+          generatorState.timer = null;
+          generatorState.isPlaying = false;
+          render();
+        }
+      }, 950);
+    } else {
+      if (generatorState.timer) {
+        clearInterval(generatorState.timer);
+        generatorState.timer = null;
+      }
+    }
+    render();
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-cache-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      generatorState.useCache = btn.dataset.cacheMode === 'cached';
+      render();
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-needle-arch]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      generatorState.needleArch = btn.dataset.needleArch as 'attention' | 'window' | 'mamba';
+      render();
+    });
+  });
 }
+
 
 function changeLesson(direction: number) {
   state.chapter = Math.max(0, Math.min(lessons.length - 1, state.chapter + direction));
@@ -214,13 +481,95 @@ function bindInfoCards() {
 
 function renderResearch() {
   const chapter = attentionPaperChapters[state.chapter % attentionPaperChapters.length];
-    const researchBody = state.eli5 ? attentionPaperEli5[state.chapter % attentionPaperEli5.length][1] : chapter.body;
   const paper = researchPapers[0];
+  const telData = telephoneVsLaserData[researchInteractiveState.mode];
+  const telTokens = [
+    { word: 'The', rnnState: 'Subject: Cat', status: 'active' },
+    { word: 'cat', rnnState: 'Subject: Cat', status: 'active' },
+    { word: 'sat', rnnState: 'Action: Sat', status: 'active' },
+    { word: 'because', rnnState: 'Causal link', status: 'degraded' },
+    { word: 'it', rnnState: 'Pronoun (blurry)', status: 'degraded' },
+    { word: 'was', rnnState: 'Signal lost (???)', status: 'degraded' }
+  ];
+
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a><a href="#research">RESEARCH PAPERS</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
-    <main id="research-top"><section class="research-hero section-shell"><div><p class="eyebrow">Research paper 01 / beginner track</p><h1>Attention Is <em>All You Need.</em></h1><p class="hero-lede">A friendly walk through the paper that introduced the Transformer. No assumed research background: first understand the problem, then see the idea, then connect it to the systems you use today.</p><div class="paper-meta research-hero-meta"><span>${paper.year}</span><span>${paper.citation}</span><span>Vaswani et al.</span></div></div><div class="research-thesis"><span class="lesson-label">THE PAPER IN ONE LINE</span><strong>Let every word ask which other words it should listen to.</strong><div class="research-thesis-flow"><span>tokens</span><b>→</b><span>attention</span><b>→</b><span>context</span></div></div></section>
-    <section class="paper-reader section-shell"><aside class="paper-reader-nav"><div class="sidebar-heading"><span class="lesson-label">PAPER MAP</span><strong>Read the argument</strong></div><nav aria-label="Research paper chapters">${attentionPaperChapters.map((item, index) => `<button class="paper-chapter ${index === state.chapter % attentionPaperChapters.length ? 'active' : ''}" data-research-chapter="${index}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${item.title}</strong><small>${item.label}</small></button>`).join('')}</nav></aside><article class="paper-reading"><div class="paper-reading-header"><div><span class="lesson-label">${chapter.label}</span><h2>${chapter.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousResearch" ${state.chapter === 0 ? 'disabled' : ''}>← Previous</button><span>${state.chapter + 1} / ${attentionPaperChapters.length}</span><button class="step-button" data-action="nextResearch" ${state.chapter === attentionPaperChapters.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="paper-reading-body">${chapter.body}</p>${chapter.formula ? `<code class="paper-formula">${chapter.formula}</code>` : ''}<div class="paper-takeaway"><span class="lesson-label">KEEP THIS IDEA</span><strong>${chapter.takeaway}</strong></div><div class="paper-activity"><span class="lesson-label">LOOK AT THE SYSTEM</span><p>${chapter.label === 'The mechanism' ? 'The Q / K / V path is the same idea that later creates the KV cache. Move to the KV-cache module after this chapter to see the serving cost.' : chapter.label === 'Why it mattered' ? 'The paper’s idea is architectural: make relationships between positions easy to compute in parallel. The exact model and training recipe can change around it.' : 'Read the chapter, then use the Transformer module to manipulate the corresponding stage.'}</p><a href="${chapter.label === 'The mechanism' ? '#top' : '#transformer'}">Open the related interactive module →</a></div></article></section>
-    <section class="upcoming-section section-shell"><div class="paper-heading"><div><p class="eyebrow">Research shelf</p><h2>More papers, coming soon.</h2><p>Each paper will get the same treatment: the problem, the idea, the mechanism, the evidence, and the engineering consequences.</p></div><span class="paper-count">${upcomingPapers.length} IN QUEUE</span></div><div class="upcoming-grid">${upcomingPapers.map(([title, description], index) => `<article class="upcoming-card"><span>COMING SOON · 0${index + 2}</span><h3>${title}</h3><p>${description}</p></article>`).join('')}</div></section></main><footer class="footer section-shell"><span>AI SYSTEMS LAB / RESEARCH PAPERS</span><a class="text-button" href="#transformer">Back to Transformer →</a></footer>`;
+    <main id="research-top">
+      <section class="research-hero section-shell">
+        <div>
+          <p class="eyebrow">Research paper 01 / Foundations track</p>
+          <h1>Attention Is <em>All You Need.</em></h1>
+          <p class="hero-lede">A friendly, analogy-driven walk through the paper that introduced the Transformer. See why older models were like a slow game of telephone, and why attention felt like a laser pointer connecting any two words instantly.</p>
+          <div class="paper-meta research-hero-meta"><span>${paper.year}</span><span>${paper.citation}</span><span>Vaswani et al.</span></div>
+        </div>
+        <div class="research-thesis">
+          <span class="lesson-label">THE PAPER IN ONE LINE</span>
+          <strong>Let every word ask which other words it should listen to.</strong>
+          <div class="research-thesis-flow"><span>tokens</span><b>→</b><span>parallel attention</span><b>→</b><span>context</span></div>
+        </div>
+      </section>
+
+      <!-- Interactive Telephone vs Laser Pointer Simulator -->
+      <section class="tel-laser-section section-shell">
+        <div class="tel-laser-header">
+          <div>
+            <span class="lesson-label">INTERACTIVE BREAKTHROUGH SIMULATOR</span>
+            <h3>The Telephone Game vs. The Laser Pointer</h3>
+            <p>Why did the 2017 Transformer replace RNNs? Switch paradigms below to see the hardware bottleneck and information flow.</p>
+          </div>
+          <div class="tel-mode-switcher">
+            <button class="tel-mode-btn ${researchInteractiveState.mode === 'rnn' ? 'active' : ''}" data-tel-mode="rnn">1986–2016: The Telephone Game (RNN)</button>
+            <button class="tel-mode-btn ${researchInteractiveState.mode === 'transformer' ? 'active' : ''}" data-tel-mode="transformer">2017: The Laser Pointer (Transformer)</button>
+          </div>
+        </div>
+
+        <div class="tel-stage">
+          <div class="tel-stage-label">
+            <span>SEQUENCE FLOW: "The cat sat because it was tired"</span>
+            <span>${telData.era}</span>
+          </div>
+          <div class="tel-nodes-wrap">
+            ${telTokens.map((item, idx) => `
+              <div class="tel-node ${researchInteractiveState.mode === 'rnn' ? item.status : (idx === 1 || idx === 4 ? 'laser-target' : 'active')}">
+                <div class="tel-node-circle">${String(idx + 1).padStart(2, '0')}</div>
+                <span class="tel-node-token">“${item.word}”</span>
+                <span class="tel-node-whisper">${researchInteractiveState.mode === 'rnn' ? item.rnnState : (idx === 4 ? 'Query: “it”' : idx === 1 ? 'Key: “cat” 🎯' : 'Parallel Q/K/V')}</span>
+              </div>
+              ${idx < telTokens.length - 1 ? `
+                <div class="tel-connector-line ${researchInteractiveState.mode === 'rnn' ? 'whisper-arrow' : 'laser-ray'}"></div>
+              ` : ''}
+            `).join('')}
+          </div>
+          <div class="tel-gpu-meter">
+            <span>GPU HARDWARE UTILIZATION & ALGORITHMIC BOTTLENECK:</span>
+            <strong class="${researchInteractiveState.mode === 'transformer' ? 'good' : 'bad'}">
+              ${researchInteractiveState.mode === 'transformer' ? '⚡ 10,000 / 10,000 GPU CORES SATURATED (Parallel Q·Kᵀ Matrix Multiply · O(1) Training Time)' : '⚠️ 1 / 10,000 GPU CORES ACTIVE (Sequential Token Chain · Core 6 waits for Core 5)'}
+            </strong>
+          </div>
+        </div>
+
+        <div class="tel-points-grid">
+          ${telData.points.map((pt) => `
+            <div class="tel-point-card">
+              <span class="kicker">${pt.kicker}</span>
+              <h4>${pt.title}</h4>
+              <p>${pt.desc}</p>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="tel-catch-card">
+          <span class="kicker">THE 2024 INFERENCE CATCH (CONNECTING THEORY TO REALITY)</span>
+          <h4>Why the laser pointer created the KV Cache problem:</h4>
+          <p>In training, laser pointers are computed all at once in parallel because the whole sentence is known upfront. But in live chat generation (inference), you must produce one token at a time. Storing every past laser target in memory for each user creates the massive KV Cache serving crisis you explored in Module 2!</p>
+        </div>
+      </section>
+
+      <section class="paper-reader section-shell"><aside class="paper-reader-nav"><div class="sidebar-heading"><span class="lesson-label">PAPER MAP</span><strong>Read the argument</strong></div><nav aria-label="Research paper chapters">${attentionPaperChapters.map((item, index) => `<button class="paper-chapter ${index === state.chapter % attentionPaperChapters.length ? 'active' : ''}" data-research-chapter="${index}"><span>${String(index + 1).padStart(2, '0')}</span><strong>${item.title}</strong><small>${item.label}</small></button>`).join('')}</nav></aside><article class="paper-reading"><div class="paper-reading-header"><div><span class="lesson-label">${chapter.label}</span><h2>${chapter.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousResearch" ${state.chapter === 0 ? 'disabled' : ''}>← Previous</button><span>${state.chapter + 1} / ${attentionPaperChapters.length}</span><button class="step-button" data-action="nextResearch" ${state.chapter === attentionPaperChapters.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="paper-reading-body">${chapter.body}</p>${chapter.formula ? `<code class="paper-formula">${chapter.formula}</code>` : ''}<div class="paper-takeaway"><span class="lesson-label">KEEP THIS IDEA</span><strong>${chapter.takeaway}</strong></div><div class="paper-activity"><span class="lesson-label">LOOK AT THE SYSTEM</span><p>${chapter.label === 'The mechanism' ? 'The Q / K / V path is the same idea that later creates the KV cache. Move to the KV-cache module after this chapter to see the serving cost.' : chapter.label === 'Why it mattered' ? 'The paper’s idea is architectural: make relationships between positions easy to compute in parallel. The exact model and training recipe can change around it.' : 'Read the chapter, then use the Transformer module to manipulate the corresponding stage.'}</p><a href="${chapter.label === 'The mechanism' ? '#top' : '#transformer'}">Open the related interactive module →</a></div></article></section>
+      <section class="upcoming-section section-shell"><div class="paper-heading"><div><p class="eyebrow">Research shelf</p><h2>More papers, coming soon.</h2><p>Each paper will get the same treatment: the problem, the idea, the mechanism, the evidence, and the engineering consequences.</p></div><span class="paper-count">${upcomingPapers.length} IN QUEUE</span></div><div class="upcoming-grid">${upcomingPapers.map(([title, description], index) => `<article class="upcoming-card"><span>COMING SOON · 0${index + 2}</span><h3>${title}</h3><p>${description}</p></article>`).join('')}</div></section>
+    </main>
+    <footer class="footer section-shell"><span>AI SYSTEMS LAB / RESEARCH PAPERS</span><a class="text-button" href="#transformer">Back to Transformer →</a></footer>
+  `;
   bindResearchEvents();
 }
 
@@ -244,16 +593,78 @@ function bindResearchEvents() {
   document.querySelector<HTMLButtonElement>('[data-action="nextResearch"]')?.addEventListener('click', () => { state.chapter = Math.min(attentionPaperChapters.length - 1, state.chapter + 1); renderResearch(); });
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderResearch(); });
   document.querySelector<HTMLButtonElement>('[data-action="toggleEli5"]')?.addEventListener('click', () => { state.eli5 = !state.eli5; renderResearch(); });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-tel-mode]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      researchInteractiveState.mode = btn.dataset.telMode as 'rnn' | 'transformer';
+      renderResearch();
+    });
+  });
 }
+
 
 function renderTransformer() {
   const lesson = transformerLessons[transformerState.lesson];
   const copy = transformerState.eli5 ? transformerEli5[lesson.id] : lesson;
   const paper = researchPapers[0];
+  const detective = tokenDetectiveData[transformerState.query] ?? tokenDetectiveData[0];
+
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a><a href="#research" target="_blank" rel="noreferrer">RESEARCH PAPERS ↗</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
     <main id="transformer-top"><section class="hero section-shell transformer-hero"><div class="hero-copy"><p class="eyebrow">Module 01 / Foundations</p><h1>How a Transformer <em>thinks in layers.</em></h1><p class="hero-lede">Follow a sequence from token IDs to contextual representations. See where attention connects positions, where the MLP transforms features, and why many blocks are stacked together.</p><div class="hero-actions"><button class="primary-button" data-action="startTransformer">Start the walkthrough <span>↗</span></button><a class="text-button" href="#top">Explore KV cache <span>→</span></a></div></div><div class="transformer-hero-diagram"><div class="diagram-caption">A SEQUENCE BECOMES A REPRESENTATION</div><div class="hero-token-row"><span>the</span><span>model</span><span>reads</span><span>context</span></div><div class="hero-arrow">↓</div><div class="hero-layer-row"><b>ATTENTION</b><b>MLP</b><b>ATTENTION</b></div><div class="hero-arrow">↓</div><div class="hero-output">contextual prediction</div></div></section>
-    <section class="lab-section section-shell transformer-section" id="transformer-lab"><div class="lesson-layout"><aside class="lesson-sidebar"><div class="sidebar-heading"><span class="lesson-label">MODULE MAP</span><strong>Transformer path</strong></div><nav aria-label="Transformer lesson navigation">${transformerLessons.map((item, index) => `<button class="lesson-nav-item ${index === transformerState.lesson ? 'active' : ''}" data-transformer-lesson="${index}"><span>${item.kicker}</span><strong>${item.title}</strong><small>${item.question}</small></button>`).join('')}</nav></aside><div class="lesson-content"><div class="section-heading"><div><p class="eyebrow">${lesson.kicker}</p><h2>${lesson.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousTransformer" ${transformerState.lesson === 0 ? 'disabled' : ''}>← Previous</button><span>${transformerState.lesson + 1} / ${transformerLessons.length}</span><button class="step-button" data-action="nextTransformer" ${transformerState.lesson === transformerLessons.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="section-intro">${lesson.question} ${lesson.intro}</p><article class="reading-panel"><div class="reading-header"><div><span class="lesson-label">READ THE CONCEPT</span><h3>${lesson.title}</h3></div><span class="reading-index">${String(transformerState.lesson + 1).padStart(2, '0')} / ${String(transformerLessons.length).padStart(2, '0')}</span></div><p class="reading-intro">${lesson.intro}</p><div class="reading-sections">${lesson.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.formula ? `<code>${section.formula}</code>` : ''}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('')}</div></article><div class="attention-activity"><div class="activity-heading"><div><span class="lesson-label">TRY THE IDEA</span><h3>Ask one word what it needs.</h3><p>Select a query word. The lines show an educational example of where that word could look for context.</p></div><span class="activity-badge">ILLUSTRATIVE WEIGHTS</span></div><div class="query-picker">${demoTokens.map((token, index) => `<button class="query-button ${index === transformerState.query ? 'active' : ''}" data-query-token="${index}">${token}</button>`).join('')}</div><div class="transformer-lab-grid"><div class="visual-panel"><div class="panel-topline"><span class="panel-label">LIVE ATTENTION VIEW</span><span class="panel-note">Not learned model weights</span></div><canvas id="transformer-canvas" aria-label="Illustrative attention links for a selected query token"></canvas><div class="canvas-legend"><span><b class="dot q"></b>Query token</span><span><b class="dot k"></b>Context token</span><span><b class="dot state-dot-legend"></b>Stronger illustrative link</span></div></div><aside class="control-panel transformer-controls"><div class="control-block"><label for="transformer-heads"><span>Attention heads shown</span><strong>${transformerState.heads}</strong></label><input id="transformer-heads" type="range" min="1" max="8" value="${transformerState.heads}"><div class="range-labels"><span>1</span><span>8</span></div></div><div class="control-block"><label for="transformer-depth"><span>Stacked blocks</span><strong>${transformerState.depth}</strong></label><input id="transformer-depth" type="range" min="1" max="48" value="${transformerState.depth}"><div class="range-labels"><span>1</span><span>48</span></div></div><div class="architecture-select"><span class="control-caption">What happens in this view</span><div class="transformer-path-detail"><span class="lesson-label">WHAT THIS STAGE DOES</span><strong>${transformerPathDetails[transformerState.path][0]}</strong><p>${transformerPathDetails[transformerState.path][1]}</p><code>${transformerPathDetails[transformerState.path][2]}</code></div></div></aside></div><p class="activity-explanation"><strong>${demoTokens[transformerState.query]}</strong> is the query. Its attention weights are not computed from a trained model here; they are a small teaching example that makes the Q → K → V flow visible.</p></div><div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lesson.takeaway}</strong></div><div class="check-card"><span class="lesson-label">MENTAL MODEL</span><p>Input representations move through repeated transformations. Attention communicates across positions; MLP layers transform each position; residuals carry the running signal forward.</p></div></div></div></div></section><section class="reference section-shell"><div><p class="eyebrow">Module bridge</p><h2>Now follow the memory.</h2><p>Once you understand how attention creates and uses Key and Value representations, continue to the KV-cache module to see why long context becomes a serving problem.</p></div><div class="equation-card"><span>NEXT MODULE</span><code>Transformer blocks<br>↓<br>attention history<br>↓<br>KV cache pressure</code><a class="primary-button" href="#top">Open KV cache <span>→</span></a></div></section></main><footer class="footer section-shell"><span>AI SYSTEMS LAB / MODULE 01</span><a class="text-button" href="#top">Go to KV cache →</a></footer>`;
+    <section class="lab-section section-shell transformer-section" id="transformer-lab"><div class="lesson-layout"><aside class="lesson-sidebar"><div class="sidebar-heading"><span class="lesson-label">MODULE MAP</span><strong>Transformer path</strong></div><nav aria-label="Transformer lesson navigation">${transformerLessons.map((item, index) => `<button class="lesson-nav-item ${index === transformerState.lesson ? 'active' : ''}" data-transformer-lesson="${index}"><span>${item.kicker}</span><strong>${item.title}</strong><small>${item.question}</small></button>`).join('')}</nav></aside><div class="lesson-content"><div class="section-heading"><div><p class="eyebrow">${lesson.kicker}</p><h2>${lesson.title}</h2></div><div class="lesson-step-actions"><button class="step-button" data-action="previousTransformer" ${transformerState.lesson === 0 ? 'disabled' : ''}>← Previous</button><span>${transformerState.lesson + 1} / ${transformerLessons.length}</span><button class="step-button" data-action="nextTransformer" ${transformerState.lesson === transformerLessons.length - 1 ? 'disabled' : ''}>Next →</button></div></div><p class="section-intro">${lesson.question} ${lesson.intro}</p><article class="reading-panel"><div class="reading-header"><div><span class="lesson-label">READ THE CONCEPT</span><h3>${lesson.title}</h3></div><span class="reading-index">${String(transformerState.lesson + 1).padStart(2, '0')} / ${String(transformerLessons.length).padStart(2, '0')}</span></div><p class="reading-intro">${lesson.intro}</p><div class="reading-sections">${lesson.sections.map((section) => `<section class="reading-section"><h4>${section.heading}</h4><p>${section.body}</p>${section.formula ? `<code>${section.formula}</code>` : ''}${section.bullets ? `<ul>${section.bullets.map((bullet) => `<li>${bullet}</li>`).join('')}</ul>` : ''}</section>`).join('')}</div></article><div class="attention-activity"><div class="activity-heading"><div><span class="lesson-label">TRY THE IDEA</span><h3>Ask one word what it needs.</h3><p>Select a query word. The lines show an educational example of where that word could look for context.</p></div><span class="activity-badge">ILLUSTRATIVE WEIGHTS</span></div><div class="query-picker">${demoTokens.map((token, index) => `<button class="query-button ${index === transformerState.query ? 'active' : ''}" data-query-token="${index}">${token}</button>`).join('')}</div><div class="transformer-lab-grid"><div class="visual-panel"><div class="panel-topline"><span class="panel-label">LIVE ATTENTION VIEW</span><span class="panel-note">Illustrative attention weights</span></div><canvas id="transformer-canvas" aria-label="Illustrative attention links for a selected query token"></canvas><div class="canvas-legend"><span><b class="dot q"></b>Query token</span><span><b class="dot k"></b>Context token</span><span><b class="dot state-dot-legend"></b>Stronger illustrative link</span></div></div><aside class="control-panel transformer-controls"><div class="control-block"><label for="transformer-heads"><span>Attention heads shown</span><strong>${transformerState.heads}</strong></label><input id="transformer-heads" type="range" min="1" max="8" value="${transformerState.heads}"><div class="range-labels"><span>1</span><span>8</span></div></div><div class="control-block"><label for="transformer-depth"><span>Stacked blocks</span><strong>${transformerState.depth}</strong></label><input id="transformer-depth" type="range" min="1" max="48" value="${transformerState.depth}"><div class="range-labels"><span>1</span><span>48</span></div></div><div class="architecture-select"><span class="control-caption">What happens in this view</span><div class="transformer-path-detail"><span class="lesson-label">WHAT THIS STAGE DOES</span><strong>${transformerPathDetails[transformerState.path][0]}</strong><p>${transformerPathDetails[transformerState.path][1]}</p><code>${transformerPathDetails[transformerState.path][2]}</code></div></div></aside></div><p class="activity-explanation"><strong>"${demoTokens[transformerState.query]}"</strong> is the active query token. Attention weights below show how Query-Key matching pulls contextual meaning from other tokens.</p>
+
+        <!-- Interactive Q-K-V Detective Board -->
+        <div class="detective-board">
+          <div class="detective-header">
+            <div>
+              <span class="lesson-label">INTERACTIVE Q-K-V DETECTIVE BOARD</span>
+              <h4 style="margin:4px 0 0;font-size:19px;font-family:'Space Grotesk',sans-serif;color:var(--ink);">How attention connects words in practice</h4>
+            </div>
+            <div class="detective-token-badge">
+              ACTIVE QUERY: <strong>"${demoTokens[transformerState.query]}"</strong> (Token ${transformerState.query + 1} of ${demoTokens.length})
+            </div>
+          </div>
+
+          <div class="detective-query-box">
+            <span class="query-label">🔎 1. THE QUERY (WHAT THIS WORD IS ASKING FOR)</span>
+            <p class="query-text">${detective.queryQuestion}</p>
+          </div>
+
+          <div class="detective-keys-heading">
+            <span class="lesson-label">🏷️ 2. MATCHING KEYS (CANDIDATE LABELS ACROSS THE SENTENCE)</span>
+            <span style="font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)">Click any word above to inspect its query</span>
+          </div>
+
+          <div class="detective-keys-grid">
+            ${detective.keys.map((k) => `
+              <div class="detective-key-card ${k.weight >= 0.7 ? 'high-match' : ''} ${k.targetIndex === transformerState.query ? 'query-self' : ''}">
+                <div class="key-card-top">
+                  <span class="key-card-word">“${demoTokens[k.targetIndex]}”</span>
+                  <span class="key-card-score ${k.weight >= 0.7 ? 'high' : ''}">${Math.round(k.weight * 100)}% MATCH</span>
+                </div>
+                <div class="key-card-label">${k.keyLabel}</div>
+                <div class="match-bar-wrap">
+                  <div class="match-bar" style="width: ${Math.round(k.weight * 100)}%; background: ${k.weight >= 0.7 ? 'var(--teal)' : k.targetIndex === transformerState.query ? 'var(--violet)' : 'var(--dim)'}"></div>
+                </div>
+                <p class="key-card-reason">${k.reason}</p>
+              </div>
+            `).join('')}
+          </div>
+
+          <div class="detective-bottom-grid">
+            <div class="detective-box">
+              <h4>📦 3. VALUE RETRIEVED (THE MESSAGE EXTRACTED)</h4>
+              <p>${detective.valuePayload}</p>
+            </div>
+            <div class="detective-box">
+              <h4>🧬 4. CONTEXTUAL SYNTHESIS (UPDATED REPRESENTATION)</h4>
+              <p>${detective.synthesis}</p>
+            </div>
+          </div>
+        </div>
+
+      </div><div class="takeaway-grid"><div class="takeaway-card"><span class="lesson-label">ONE-SENTENCE TAKEAWAY</span><strong>${lesson.takeaway}</strong></div><div class="check-card"><span class="lesson-label">MENTAL MODEL</span><p>Input representations move through repeated transformations. Attention communicates across positions; MLP layers transform each position; residuals carry the running signal forward.</p></div></div></div></div></section><section class="reference section-shell"><div><p class="eyebrow">Module bridge</p><h2>Now follow the memory.</h2><p>Once you understand how attention creates and uses Key and Value representations, continue to the KV-cache module to see why long context becomes a serving problem.</p></div><div class="equation-card"><span>NEXT MODULE</span><code>Transformer blocks<br>↓<br>attention history<br>↓<br>KV cache pressure</code><a class="primary-button" href="#top">Open KV cache <span>→</span></a></div></section></main><footer class="footer section-shell"><span>AI SYSTEMS LAB / MODULE 01</span><a class="text-button" href="#top">Go to KV cache →</a></footer>`;
   bindTransformerEvents();
   drawTransformerCanvas();
 }
@@ -329,11 +740,12 @@ function changeTransformerLesson(direction: number) {
 }
 
 function attentionStrength(query: number, target: number): number {
-  if (query === 4 && target === 1) return 0.9;
-  if (query === 4 && target === 6) return 0.62;
-  if (Math.abs(query - target) === 1) return 0.38;
-  return 0.14;
+  const detective = tokenDetectiveData[query];
+  if (!detective) return 0.15;
+  const match = detective.keys.find((k) => k.targetIndex === target);
+  return match ? match.weight : 0.15;
 }
+
 
 function drawTransformerCanvas() {
   const canvas = document.querySelector<HTMLCanvasElement>('#transformer-canvas');

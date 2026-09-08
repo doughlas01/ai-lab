@@ -41,6 +41,129 @@ export const transformerLessons: TransformerLesson[] = [
   ], takeaway: 'Depth lets a Transformer repeatedly refine contextual representations before making a prediction.' }
 ];
 
+export type TokenMatch = {
+  targetIndex: number;
+  keyLabel: string;
+  weight: number;
+  reason: string;
+};
+
+export type TokenInspection = {
+  token: string;
+  queryQuestion: string;
+  keys: TokenMatch[];
+  valuePayload: string;
+  synthesis: string;
+};
+
+export const tokenDetectiveData: TokenInspection[] = [
+  {
+    token: 'The',
+    queryQuestion: '“I am a definite article. Which upcoming noun do I specify?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Article / Determiner', weight: 0.12, reason: 'Self-position reference' },
+      { targetIndex: 1, keyLabel: 'Subject / Animate Noun', weight: 0.86, reason: 'Target noun being specified' },
+      { targetIndex: 2, keyLabel: 'Main Action Verb', weight: 0.15, reason: 'Clause predicate' },
+      { targetIndex: 3, keyLabel: 'Causal Conjunction', weight: 0.05, reason: 'Subordinate clause connector' },
+      { targetIndex: 4, keyLabel: 'Pronoun', weight: 0.08, reason: 'Future coreferent' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.04, reason: 'Temporal marker' },
+      { targetIndex: 6, keyLabel: 'Predicate Adjective', weight: 0.09, reason: 'Final state' }
+    ],
+    valuePayload: 'Definite entity: a specific, known feline subject.',
+    synthesis: '“The” binds to “cat”, establishing that the narrative refers to a specific animal rather than any generic cat.'
+  },
+  {
+    token: 'cat',
+    queryQuestion: '“I am the main subject noun. What action did I take, and what state am I in?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Definite Determiner', weight: 0.28, reason: 'Direct modifier' },
+      { targetIndex: 1, keyLabel: 'Subject / Animate Noun', weight: 0.18, reason: 'Self-identity' },
+      { targetIndex: 2, keyLabel: 'Main Action Verb', weight: 0.92, reason: 'Direct action performed (sat)' },
+      { targetIndex: 3, keyLabel: 'Causal Conjunction', weight: 0.22, reason: 'Reasoning link' },
+      { targetIndex: 4, keyLabel: 'Subject Pronoun', weight: 0.35, reason: 'Future coreference target' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.16, reason: 'State verb' },
+      { targetIndex: 6, keyLabel: 'Predicate Adjective', weight: 0.78, reason: 'Condition/state (tired)' }
+    ],
+    valuePayload: 'Entity traits: resting feline, seated position, fatigue condition.',
+    synthesis: '“cat” absorbs its action (“sat”) and condition (“tired”) so downstream layers know the full context of the subject.'
+  },
+  {
+    token: 'sat',
+    queryQuestion: '“I am the action verb. Who sat down, and why did they sit?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Definite Determiner', weight: 0.14, reason: 'Subject modifier' },
+      { targetIndex: 1, keyLabel: 'Subject / Agent', weight: 0.94, reason: 'The agent who sat down' },
+      { targetIndex: 2, keyLabel: 'Action Verb', weight: 0.16, reason: 'Self-action' },
+      { targetIndex: 3, keyLabel: 'Causal Conjunction', weight: 0.81, reason: 'Points to explanation clause' },
+      { targetIndex: 4, keyLabel: 'Subject Pronoun', weight: 0.29, reason: 'Agent reference in cause clause' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.21, reason: 'Tense anchor' },
+      { targetIndex: 6, keyLabel: 'Underlying Cause', weight: 0.68, reason: 'The root cause of sitting' }
+    ],
+    valuePayload: 'Action: sitting posture; Agent: cat; Root Cause: fatigue.',
+    synthesis: '“sat” ties the actor (“cat”) to the rationale (“because it was tired”), encoding a complete causal action.'
+  },
+  {
+    token: 'because',
+    queryQuestion: '“I am a causal conjunction. Which action am I explaining with what cause?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Article', weight: 0.08, reason: 'Background context' },
+      { targetIndex: 1, keyLabel: 'Agent', weight: 0.38, reason: 'Entity involved' },
+      { targetIndex: 2, keyLabel: 'Prior Event / Effect', weight: 0.89, reason: 'The event being justified (sat)' },
+      { targetIndex: 3, keyLabel: 'Causal Conjunction', weight: 0.14, reason: 'Self-operator' },
+      { targetIndex: 4, keyLabel: 'Subject Pronoun', weight: 0.44, reason: 'Subject of cause clause' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.31, reason: 'Tense alignment' },
+      { targetIndex: 6, keyLabel: 'Subsequent Cause', weight: 0.93, reason: 'The explanatory condition (tired)' }
+    ],
+    valuePayload: 'Causal relationship: [cat sitting] caused by [fatigue].',
+    synthesis: '“because” bridges the two clauses, pulling the effect from the left and the cause from the right.'
+  },
+  {
+    token: 'it',
+    queryQuestion: '“I am a singular neuter pronoun. What antecedent noun do I refer to?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Article', weight: 0.11, reason: 'Determiner of antecedent' },
+      { targetIndex: 1, keyLabel: 'Antecedent Noun', weight: 0.95, reason: 'EXACT ANTECEDENT MATCH: cat!' },
+      { targetIndex: 2, keyLabel: 'Prior Action', weight: 0.34, reason: 'Action previously performed' },
+      { targetIndex: 3, keyLabel: 'Causal Conjunction', weight: 0.24, reason: 'Clause marker' },
+      { targetIndex: 4, keyLabel: 'Subject Pronoun', weight: 0.15, reason: 'Self-reference' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.42, reason: 'Immediate predicate' },
+      { targetIndex: 6, keyLabel: 'Predicate Adjective', weight: 0.72, reason: 'Condition describing this pronoun' }
+    ],
+    valuePayload: 'Resolved identity: the cat; current condition: tired.',
+    synthesis: '“it” resolves coreference to “cat”. Without attention, “it” is ambiguous; with attention, it assumes the cat’s identity.'
+  },
+  {
+    token: 'was',
+    queryQuestion: '“I am a linking copula. Which subject pronoun am I connecting to which state?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Article', weight: 0.06, reason: 'Distant determiner' },
+      { targetIndex: 1, keyLabel: 'Root Entity', weight: 0.62, reason: 'Underlying entity' },
+      { targetIndex: 2, keyLabel: 'Prior Action', weight: 0.25, reason: 'Previous clause verb' },
+      { targetIndex: 3, keyLabel: 'Clause Conjunction', weight: 0.35, reason: 'Local clause head' },
+      { targetIndex: 4, keyLabel: 'Local Subject', weight: 0.88, reason: 'Subject being linked (it)' },
+      { targetIndex: 5, keyLabel: 'Auxiliary Verb', weight: 0.12, reason: 'Self-reference' },
+      { targetIndex: 6, keyLabel: 'Predicate Adjective', weight: 0.91, reason: 'Complement state (tired)' }
+    ],
+    valuePayload: 'Predication: [it/cat] was in state of [tiredness].',
+    synthesis: '“was” binds the local subject (“it”) to its adjective complement (“tired”) in the past tense.'
+  },
+  {
+    token: 'tired',
+    queryQuestion: '“I am an adjective denoting exhaustion. Who is tired and what did that cause?”',
+    keys: [
+      { targetIndex: 0, keyLabel: 'Determiner', weight: 0.08, reason: 'Background determiner' },
+      { targetIndex: 1, keyLabel: 'Core Entity', weight: 0.85, reason: 'The real-world entity that is exhausted' },
+      { targetIndex: 2, keyLabel: 'Resulting Action', weight: 0.76, reason: 'The action caused by this state (sat)' },
+      { targetIndex: 3, keyLabel: 'Causal Reason', weight: 0.58, reason: 'Explains why this state is invoked' },
+      { targetIndex: 4, keyLabel: 'Immediate Subject', weight: 0.91, reason: 'Pronoun directly modified (it)' },
+      { targetIndex: 5, keyLabel: 'Linking Verb', weight: 0.54, reason: 'Connecting verb (was)' },
+      { targetIndex: 6, keyLabel: 'Predicate Adjective', weight: 0.16, reason: 'Self-state' }
+    ],
+    valuePayload: 'Exhaustion condition; Owner: cat; Consequence: sitting.',
+    synthesis: '“tired” grounds its meaning in “cat” and provides the causal explanation for the action “sat”.'
+  }
+];
+
 export const researchPapers = [
   {
     year: '2017',
@@ -58,3 +181,4 @@ export const researchPapers = [
     caveat: 'This paper introduced the original Transformer for sequence transduction. It did not introduce today’s decoder-only LLM recipe, KV-cache serving systems, or every later attention variant.'
   }
 ];
+
