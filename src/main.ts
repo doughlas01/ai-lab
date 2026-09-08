@@ -26,7 +26,8 @@ const architectureLabels: Record<Architecture, string> = {
 const state: State = { tokens: 1280, users: 12, window: 128, architecture: 'attention', reducedMotion: false, chapter: 0 };
 const model = { layers: 32, kvHeads: 8, headDim: 128, bytes: 2, gpu: 24, weights: 10 };
 const root = document.querySelector<HTMLDivElement>('#app')!;
-const transformerState = { lesson: 0, tokens: 6, heads: 4, depth: 12 };
+const transformerState = { lesson: 0, tokens: 6, heads: 4, depth: 12, path: 2 };
+const transformerPath = ['Token embeddings', 'Position signal', 'Self-attention', 'MLP / residual update', 'Prediction head'];
 
 function formatBytes(gb: number): string {
   return gb >= 1 ? `${gb.toFixed(2)} GB` : `${(gb * 1024).toFixed(0)} MB`;
@@ -179,6 +180,8 @@ function renderTransformer() {
 }
 
 function bindTransformerEvents() {
+  const pathList = document.querySelector<HTMLDivElement>('.transformer-path-list');
+  if (pathList) pathList.innerHTML = transformerPath.map((path) => `<span>${path}</span>`).join('');
   document.querySelectorAll<HTMLButtonElement>('[data-transformer-lesson]').forEach((button) => button.addEventListener('click', () => { transformerState.lesson = Number(button.dataset.transformerLesson); renderTransformer(); }));
   document.querySelector<HTMLButtonElement>('[data-action="previousTransformer"]')?.addEventListener('click', () => changeTransformerLesson(-1));
   document.querySelector<HTMLButtonElement>('[data-action="nextTransformer"]')?.addEventListener('click', () => changeTransformerLesson(1));
@@ -187,6 +190,15 @@ function bindTransformerEvents() {
   document.querySelector<HTMLInputElement>('#transformer-heads')?.addEventListener('input', (event) => { transformerState.heads = Number((event.target as HTMLInputElement).value); renderTransformer(); });
   document.querySelector<HTMLInputElement>('#transformer-depth')?.addEventListener('input', (event) => { transformerState.depth = Number((event.target as HTMLInputElement).value); renderTransformer(); });
   document.querySelector<HTMLButtonElement>('[data-action="motion"]')?.addEventListener('click', () => { state.reducedMotion = !state.reducedMotion; renderTransformer(); });
+  document.querySelectorAll<HTMLButtonElement>('[data-transformer-path]').forEach((button) => button.addEventListener('click', () => { transformerState.path = Number(button.dataset.transformerPath); renderTransformer(); }));
+  document.querySelectorAll<HTMLElement>('.transformer-path-list span').forEach((stage, index) => {
+    stage.classList.toggle('active', index === transformerState.path);
+    stage.tabIndex = 0;
+    stage.setAttribute('role', 'button');
+    stage.setAttribute('aria-label', `View ${transformerPath[index]}`);
+    stage.addEventListener('click', () => { transformerState.path = index; renderTransformer(); });
+    stage.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); transformerState.path = index; renderTransformer(); } });
+  });
 }
 
 function changeTransformerLesson(direction: number) {
@@ -206,7 +218,7 @@ function drawTransformerCanvas() {
   context.fillStyle = '#10252d'; context.fillRect(0, 0, width, height); context.strokeStyle = 'rgba(168, 220, 203, .10)';
   for (let x = 0; x < width; x += 36) { context.beginPath(); context.moveTo(x, 0); context.lineTo(x, height); context.stroke(); }
   for (let y = 0; y < height; y += 36) { context.beginPath(); context.moveTo(0, y); context.lineTo(width, y); context.stroke(); }
-  context.font = '11px "DM Mono", monospace'; context.fillStyle = '#8ab6ad'; context.fillText('TOKEN REPRESENTATIONS / BLOCK ' + transformerState.depth, 24, 28);
+  context.font = '11px "DM Mono", monospace'; context.fillStyle = '#8ab6ad'; context.fillText(`${transformerPath[transformerState.path].toUpperCase()} / BLOCK ${transformerState.depth}`, 24, 28);
   const gap = Math.min(48, (width - 90) / transformerState.tokens); const start = (width - gap * transformerState.tokens) / 2; const tokenY = height * .28;
   context.font = '11px "DM Sans", sans-serif';
   for (let i = 0; i < transformerState.tokens; i++) { const x = start + i * gap; context.fillStyle = '#9a89ff'; context.beginPath(); context.roundRect(x, tokenY, 25, 25, 5); context.fill(); context.fillStyle = '#dbe8df'; context.fillText(String(i + 1), x + 9, tokenY + 16); }
