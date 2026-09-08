@@ -1,7 +1,7 @@
 import './style.css';
 import { lessons } from './lessonData';
 import { reading } from './lessonReading';
-import { transformerLessons } from './transformerData';
+import { researchPapers, transformerLessons } from './transformerData';
 
 type Architecture = 'attention' | 'window' | 'linear' | 'ssm' | 'mamba' | 'hybrid';
 
@@ -178,6 +178,7 @@ function bindInfoCards() {
 
 function renderTransformer() {
   const lesson = transformerLessons[transformerState.lesson];
+  const paper = researchPapers[0];
   root.innerHTML = `
     <header class="topbar"><a class="brand" href="#top" aria-label="AI Systems Lab home"><span class="brand-mark">AI</span><span>Systems Lab</span></a><div class="topbar-meta"><a href="#transformer">MODULE 01 / TRANSFORMER</a><span class="status-dot"></span><a href="#top">MODULE 02 / KV CACHE</a></div><button class="quiet-button" data-action="motion">${state.reducedMotion ? 'Motion off' : 'Reduce motion'}</button></header>
     <main id="transformer-top"><section class="hero section-shell transformer-hero"><div class="hero-copy"><p class="eyebrow">Module 01 / Foundations</p><h1>How a Transformer <em>thinks in layers.</em></h1><p class="hero-lede">Follow a sequence from token IDs to contextual representations. See where attention connects positions, where the MLP transforms features, and why many blocks are stacked together.</p><div class="hero-actions"><button class="primary-button" data-action="startTransformer">Start the walkthrough <span>↗</span></button><a class="text-button" href="#top">Explore KV cache <span>→</span></a></div></div><div class="transformer-hero-diagram"><div class="diagram-caption">A SEQUENCE BECOMES A REPRESENTATION</div><div class="hero-token-row"><span>the</span><span>model</span><span>reads</span><span>context</span></div><div class="hero-arrow">↓</div><div class="hero-layer-row"><b>ATTENTION</b><b>MLP</b><b>ATTENTION</b></div><div class="hero-arrow">↓</div><div class="hero-output">contextual prediction</div></div></section>
@@ -187,6 +188,7 @@ function renderTransformer() {
 }
 
 function bindTransformerEvents() {
+  addResearchShelf();
   const pathList = document.querySelector<HTMLDivElement>('.transformer-path-list');
   if (pathList) pathList.innerHTML = transformerPath.map((path) => `<span>${path}</span>`).join('');
   let detailHost = document.querySelector<HTMLElement>('.transformer-path-detail');
@@ -216,6 +218,17 @@ function bindTransformerEvents() {
     stage.addEventListener('click', () => { transformerState.path = index; renderTransformer(); });
     stage.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); transformerState.path = index; renderTransformer(); } });
   });
+}
+
+function addResearchShelf() {
+  const reference = document.querySelector<HTMLElement>('#transformer-top .reference');
+  if (!reference || document.querySelector('#papers')) return;
+  const paper = researchPapers[0];
+  const section = document.createElement('section');
+  section.id = 'papers';
+  section.className = 'paper-section section-shell';
+  section.innerHTML = `<div class="paper-heading"><div><p class="eyebrow">Research shelf</p><h2>Read the papers behind the ideas.</h2><p>Research papers introduce mechanisms; this shelf turns one paper at a time into a readable engineering story.</p></div><span class="paper-count">PAPER 01 / ${researchPapers.length}</span></div><article class="paper-card"><div class="paper-meta"><span>${paper.year}</span><span>${paper.citation}</span></div><h3>${paper.title}</h3><p class="paper-authors">${paper.authors}</p><p class="paper-question">${paper.question}</p><p class="paper-summary">${paper.summary}</p><div class="paper-ideas">${paper.ideas.map(([title, body], index) => `<div class="paper-idea"><span>0${index + 1}</span><strong>${title}</strong><p>${body}</p></div>`).join('')}</div><div class="paper-caveat"><span class="lesson-label">READ IT CAREFULLY</span><p>${paper.caveat}</p></div></article>`;
+  reference.before(section);
 }
 
 function changeTransformerLesson(direction: number) {

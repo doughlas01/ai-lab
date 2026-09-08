@@ -40,3 +40,21 @@ export const transformerLessons: TransformerLesson[] = [
     { heading: 'The final head produces a result', body: 'For language modeling, the final representation at a position is mapped to scores over the vocabulary. During generation, the model selects or samples the next token.', bullets: ['Input representations enter block 1.', 'Each block adds an attention and MLP update.', 'The final representation supports prediction.'] }
   ], takeaway: 'Depth lets a Transformer repeatedly refine contextual representations before making a prediction.' }
 ];
+
+export const researchPapers = [
+  {
+    year: '2017',
+    authors: 'Vaswani et al. · Google Brain / Google Research',
+    title: 'Attention Is All You Need',
+    citation: 'NeurIPS 2017',
+    question: 'Can sequence transduction work without recurrence or convolution?',
+    summary: 'This paper introduced the Transformer: an encoder-decoder architecture built around attention, removing recurrent and convolutional sequence-processing components from the main architecture.',
+    ideas: [
+      ['Self-attention', 'Each position can connect to other positions in the sequence and gather contextual information.'],
+      ['Multi-head attention', 'Several learned attention subspaces process different relationship patterns in parallel.'],
+      ['Position information', 'Since the architecture does not process tokens sequentially by recurrence, positional encodings provide order information.'],
+      ['Parallel training', 'Attention allows sequence positions to be processed more in parallel during training than recurrent approaches.']
+    ],
+    caveat: 'This paper introduced the original Transformer for sequence transduction. It did not introduce today’s decoder-only LLM recipe, KV-cache serving systems, or every later attention variant.'
+  }
+];
